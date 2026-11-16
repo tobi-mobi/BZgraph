@@ -137,8 +137,11 @@ class FirstPostParser(HTMLParser):
                 self.depth = 1
         elif tag == "div":
             self.depth += 1
-        if self.depth and tag in ("br", "li", "p", "div"):
+        if self.depth and tag in ("br", "li", "p", "div", "tr", "h1", "h2", "h3", "h4"):
             self.parts.append("\n")
+        elif self.depth and tag in ("td", "th"):
+            # Table cells must not run together ("Ashwreath0.30.15"), or names next to numbers never match.
+            self.parts.append(" | ")
 
     def handle_endtag(self, tag):
         if self.depth and not self.done and tag == "div":
@@ -195,10 +198,14 @@ ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]
 
 
 def load_product_names(delay: float) -> dict[str, list[str]]:
-    """Returns display name -> bazaar product IDs. Non-bazaar item names map to [] so they mask
-    shorter bazaar names inside them (e.g. "Lotus Necklace" must not count as "Lotus")."""
     products = set(json.loads(http_get(BAZAAR, delay))["products"].keys())
     items = {i["id"]: i.get("name") for i in json.loads(http_get(ITEMS, delay))["items"]}
+    return build_names(products, items)
+
+
+def build_names(products: set[str], items: dict[str, str | None]) -> dict[str, list[str]]:
+    """Returns display name -> bazaar product IDs. Non-bazaar item names map to [] so they mask
+    shorter bazaar names inside them (e.g. "Lotus Necklace" must not count as "Lotus")."""
     names: dict[str, list[str]] = {}
 
     def clean(name):
@@ -218,6 +225,11 @@ def load_product_names(delay: float) -> dict[str, list[str]]:
             add(items[pid], pid)
         elif pid.startswith("ESSENCE_"):
             add(titlecase(pid[len("ESSENCE_"):]) + " Essence", pid)
+        elif pid.startswith("SHARD_"):
+            # Attribute shards have no name in the items API; posts call them "Scatha Shard" / "Scatha shard".
+            base = titlecase(pid[len("SHARD_"):])
+            add(f"{base} Shard", pid)
+            add(f"{base} shard", pid)
         elif pid.startswith("ENCHANTMENT_"):
             m = re.match(r"ENCHANTMENT_(.+)_(\d+)$", pid)
             if m:
@@ -233,13 +245,13 @@ def load_product_names(delay: float) -> dict[str, list[str]]:
 
 
 def match_items(text: str, names: dict[str, list[str]]) -> list[str]:
-    """Case-sensitive, whole-word, longest-name-first matching; matched spans are masked."""
+    """Case-sensitive, whole-word, longest-name-first matching (plurals allowed); matched spans are masked."""
     found: set[str] = set()
     masked = text
     for name in sorted(names, key=len, reverse=True):
         if name not in masked:  # fast path
             continue
-        pattern = re.compile(r"(?<![A-Za-z0-9])" + re.escape(name) + r"(?![A-Za-z0-9])")
+        pattern = re.compile(r"(?<![A-Za-z0-9])" + re.escape(name) + r"(?:e?s)?(?![A-Za-z0-9])")
         if pattern.search(masked):
             found.update(names[name])
             masked = pattern.sub(lambda m: "#" * len(m.group(0)), masked)
