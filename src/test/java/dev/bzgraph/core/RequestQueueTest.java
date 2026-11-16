@@ -56,13 +56,17 @@ class RequestQueueTest {
 			List<CompletableFuture<Void>> fs = new ArrayList<>();
 			for (int i = 0; i < 4; i++) {
 				fs.add(q.submit(() -> {
-					starts.add(System.nanoTime() / 1_000_000L);
+					starts.add(System.nanoTime());
 					return null;
 				}));
 			}
 			CompletableFuture.allOf(fs.toArray(CompletableFuture[]::new)).get(5, TimeUnit.SECONDS);
+			// The queue guarantees spacing between task starts; the timestamps here are taken a few µs
+			// into each task, so allow 1 ms of scheduling jitter (the fake-clock test checks it exactly).
+			long minGap = TimeUnit.MILLISECONDS.toNanos(150) - TimeUnit.MILLISECONDS.toNanos(1);
 			for (int i = 1; i < starts.size(); i++) {
-				assertTrue(starts.get(i) - starts.get(i - 1) >= 150, "gap was " + (starts.get(i) - starts.get(i - 1)));
+				long gap = starts.get(i) - starts.get(i - 1);
+				assertTrue(gap >= minGap, "gap was " + gap / 1e6 + " ms");
 			}
 		}
 	}

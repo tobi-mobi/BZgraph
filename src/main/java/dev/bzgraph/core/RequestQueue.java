@@ -13,10 +13,10 @@ import java.util.function.LongSupplier;
  * {@link #pauseFor(Duration)} additionally delays the next start (used for HTTP 429 Retry-After).
  */
 public final class RequestQueue implements AutoCloseable {
-	/** Abstraction over Thread.sleep so tests can use a fake clock. */
+	/** Abstraction over Thread.sleep so tests can use a fake clock. Units match the clock's ticks. */
 	@FunctionalInterface
 	public interface Sleeper {
-		void sleep(long millis) throws InterruptedException;
+		void sleep(long ticks) throws InterruptedException;
 	}
 
 	private record Job<T>(Callable<T> task, CompletableFuture<T> future) {
@@ -30,8 +30,10 @@ public final class RequestQueue implements AutoCloseable {
 		}
 	}
 
-	private final long minSpacingMillis;
-	private final LongSupplier clockMillis;
+	/** All times below are in clock ticks (nanoseconds for the real clock, milliseconds in tests). */
+	private final long minSpacing;
+	private final long ticksPerMilli;
+	private final LongSupplier clock;
 	private final Sleeper sleeper;
 	private final BlockingQueue<Job<?>> jobs = new LinkedBlockingQueue<>();
 	private final Thread worker;
@@ -41,12 +43,19 @@ public final class RequestQueue implements AutoCloseable {
 	private volatile boolean closed;
 
 	public RequestQueue(Duration minSpacing, String threadName) {
-		this(minSpacing.toMillis(), () -> System.nanoTime() / 1_000_000L, Thread::sleep, threadName);
+		// Nanosecond clock: comparing truncated milliseconds could start a request up to 1 ms early.
+		this(minSpacing.toNanos(), 1_000_000L, System::nanoTime, ns -> Thread.sleep(Duration.ofNanos(ns)), threadName);
 	}
 
+	/** Millisecond-based constructor, used with a fake clock in tests. */
 	public RequestQueue(long minSpacingMillis, LongSupplier clockMillis, Sleeper sleeper, String threadName) {
-		this.minSpacingMillis = minSpacingMillis;
-		this.clockMillis = clockMillis;
+		this(minSpacingMillis, 1L, clockMillis, sleeper, threadName);
+	}
+
+	private RequestQueue(long minSpacing, long ticksPerMilli, LongSupplier clock, Sleeper sleeper, String threadName) {
+		this.minSpacing = minSpacing;
+		this.ticksPerMilli = ticksPerMilli;
+		this.clock = clock;
 		this.sleeper = sleeper;
 		this.worker = new Thread(this::loop, threadName);
 		this.worker.setDaemon(true);
@@ -66,7 +75,7 @@ public final class RequestQueue implements AutoCloseable {
 	/** Delays the start of the next request until at least {@code d} from now. */
 	public void pauseFor(Duration d) {
 		synchronized (lock) {
-			pausedUntil = Math.max(pausedUntil, clockMillis.getAsLong() + d.toMillis());
+			pausedUntil = Math.max(pausedUntil, clock.getAsLong() + d.toMillis() * ticksPerMilli);
 		}
 	}
 
@@ -96,10 +105,10 @@ public final class RequestQueue implements AutoCloseable {
 
 	private void waitForSlot() throws InterruptedException {
 		while (true) {
-			long now = clockMillis.getAsLong();
+			long now = clock.getAsLong();
 			long earliest;
 			synchronized (lock) {
-				earliest = Math.max(lastStart + minSpacingMillis, pausedUntil);
+				earliest = Math.max(lastStart + minSpacing, pausedUntil);
 				if (now >= earliest) {
 					lastStart = now;
 					return;
