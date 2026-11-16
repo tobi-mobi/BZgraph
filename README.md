@@ -9,9 +9,11 @@ Client-side Fabric mod for **Minecraft 26.2** that shows an in-game price-histor
 
 - **Hover + key**: hover an item in any container GUI (inventory, bazaar menu, chests) and press **G** to open its graph.
   With no GUI open, **G** graphs the item in your main hand.
-- **Roughly Enough Items (REI)**: if REI is installed, hover any item in REI's item list, favorites or recipe screens
-  and press **G** (search for an item in REI, then graph it). REI is optional; BZgraph talks to it through reflection
-  and simply skips this when REI isn't there. G is ignored while a text box (REI search, anvil, creative search) is
+- **Recipe viewers**: search for an item, hover it and press **G** to graph it.
+  - **Reliable Recipe Viewer (RRV)**: works in RRV's item list, bookmarks and craftables (BZgraph registers its key
+    through RRV's overlay keybind API).
+  - **Roughly Enough Items (REI)**: works in REI's item list, favorites and recipe screens.
+  Both are optional; BZgraph talks to them through reflection and simply skips this when they aren't installed. G is ignored while a text box (REI search, anvil, creative search) is
   focused.
 - **Command**: `/bzgraph <ITEM_ID>` with tab-completion of all bazaar product IDs (e.g. `/bzgraph ENCHANTED_DIAMOND`).
 - **Graph screen** (a centered panel, about three quarters of the screen)

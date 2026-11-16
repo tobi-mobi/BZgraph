@@ -14,6 +14,7 @@ import dev.bzgraph.mc.BzScreen;
 import dev.bzgraph.mc.GraphNav;
 import dev.bzgraph.mc.PatchListScreen;
 import dev.bzgraph.mc.ReiCompat;
+import dev.bzgraph.mc.RrvCompat;
 import dev.bzgraph.mixin.AbstractContainerScreenAccessor;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
@@ -102,6 +103,13 @@ public final class BzGraphClient implements ClientModInitializer {
 		openKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.bzgraph.open_graph",
 				InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_G,
 				KeyMapping.Category.register(Identifier.fromNamespaceAndPath(MOD_ID, "main"))));
+
+		// Reliable Recipe Viewer: graph key over an item in its item list / bookmarks / craftables.
+		RrvCompat.register(openKey, stack -> {
+			if (!isActive()) return false;
+			openForStack(stack, Minecraft.getInstance().gui.screen());
+			return true;
+		});
 
 		// Keybind inside container screens (inventory, chests, bazaar): game keybinds aren't ticked while a
 		// screen is open, so intercept the key press on the screen itself.
