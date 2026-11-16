@@ -56,6 +56,33 @@ class PatchIndexTest {
 	}
 
 	@Test
+	void curatedItemNotesReplaceAutoTagsAndSupportPrefixes() {
+		PatchIndex idx = PatchIndex.parse("""
+				{"version": 1, "patches": [
+				  {"id": "a", "date": "2026-08-11T00:00:00Z", "title": "Karma buff",
+				   "autoItems": ["ENDER_STONE", "SEA_LUMIES"],
+				   "items": ["SIGNAL_ENHANCER"], "excludeItems": ["SEA_LUMIES"],
+				   "itemNotes": {"enchantment_karma_*": "Drop chance raised 10x.",
+				                 "ENCHANTMENT_KARMA_5": "Max level now upgradable to VI.", "RUBY_VEILSHROOM": "  "}},
+				  {"id": "b", "date": "2026-08-12T00:00:00Z", "title": "Reviewed, nothing relevant", "itemNotes": {},
+				   "autoItems": ["LOTUS"]}
+				]}""");
+		PatchNote a = idx.patches().get(0);
+		assertFalse(a.affects("ENDER_STONE"), "auto tags ignored once itemNotes exists");
+		assertTrue(a.affects("SIGNAL_ENHANCER"), "manual items still count");
+		assertTrue(a.affects("ENCHANTMENT_KARMA_3"), "prefix key");
+		assertFalse(a.affects("RUBY_VEILSHROOM"), "blank note dropped");
+		assertEquals("Drop chance raised 10x.", a.noteFor("ENCHANTMENT_KARMA_2"));
+		assertEquals("Max level now upgradable to VI.", a.noteFor("ENCHANTMENT_KARMA_5"), "exact key beats prefix");
+		assertNull(a.noteFor("SIGNAL_ENHANCER"));
+		assertEquals(List.of("a"), idx.search("10x", null).stream().map(PatchNote::id).toList(), "notes are searchable");
+
+		PatchNote b = idx.patches().get(1);
+		assertTrue(b.items().isEmpty(), "empty itemNotes = reviewed, nothing relevant");
+		assertFalse(b.affects("LOTUS"));
+	}
+
+	@Test
 	void realIndexFileParses() throws Exception {
 		Path file = Path.of("patch-index", "index.json");
 		org.junit.jupiter.api.Assumptions.assumeTrue(java.nio.file.Files.exists(file), "no index in repo");

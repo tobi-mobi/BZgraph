@@ -10,8 +10,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /** Parsed patch index; patches sorted by date ascending. */
@@ -37,7 +39,6 @@ public record PatchIndex(Instant updated, List<PatchNote> patches) {
 	public List<PatchNote> affecting(String productId) {
 		return patches.stream().filter(p -> p.affects(productId)).toList();
 	}
-
 	/** Case-insensitive search over title, summary, version and item IDs. Newest first. */
 	public List<PatchNote> search(String query, String onlyProductId) {
 		String q = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
@@ -57,6 +58,7 @@ public record PatchIndex(Instant updated, List<PatchNote> patches) {
 		if (p.version() != null && p.version().toLowerCase(Locale.ROOT).contains(q)) return true;
 		String qid = q.replace(' ', '_');
 		for (String id : p.items()) if (id.toLowerCase(Locale.ROOT).contains(qid)) return true;
+		for (String note : p.itemNotes().values()) if (note.toLowerCase(Locale.ROOT).contains(q)) return true;
 		return false;
 	}
 
@@ -86,10 +88,14 @@ public record PatchIndex(Instant updated, List<PatchNote> patches) {
 			if (id == null || title == null || date == null || !seenIds.add(id)) continue;
 			String url = str(p, "url");
 			if (url != null && !url.startsWith("https://")) url = null;
-			Set<String> items = new HashSet<>(strings(p, "autoItems"));
+			// An entry with an "itemNotes" object (even empty) has been curated by hand: only the items it
+			// names are relevant, and the automatic name matches in "autoItems" are ignored.
+			Map<String, String> notes = notes(p);
+			Set<String> items = new HashSet<>(notes == null ? strings(p, "autoItems") : notes.keySet());
 			items.addAll(strings(p, "items"));
 			items.removeAll(strings(p, "excludeItems"));
-			out.add(new PatchNote(id, date, str(p, "version"), title.strip(), strOr(p, "summary").strip(), url, items));
+			out.add(new PatchNote(id, date, str(p, "version"), title.strip(), strOr(p, "summary").strip(), url, items,
+					notes == null ? Map.of() : notes));
 		}
 		return new PatchIndex(updated, out);
 	}
@@ -104,6 +110,21 @@ public record PatchIndex(Instant updated, List<PatchNote> patches) {
 	private static String strOr(JsonObject o, String key) {
 		String s = str(o, key);
 		return s == null ? "" : s;
+	}
+
+	/** The "itemNotes" object with upper-cased keys and blank notes dropped, or null if absent. */
+	private static Map<String, String> notes(JsonObject o) {
+		JsonElement e = o.get("itemNotes");
+		if (e == null || !e.isJsonObject()) return null;
+		Map<String, String> out = new LinkedHashMap<>();
+		for (Map.Entry<String, JsonElement> n : e.getAsJsonObject().entrySet()) {
+			String key = n.getKey().trim().toUpperCase(Locale.ROOT);
+			JsonElement v = n.getValue();
+			if (key.isEmpty() || v == null || !v.isJsonPrimitive()) continue;
+			String note = v.getAsString().strip();
+			if (!note.isEmpty()) out.put(key, note);
+		}
+		return out;
 	}
 
 	private static List<String> strings(JsonObject o, String key) {

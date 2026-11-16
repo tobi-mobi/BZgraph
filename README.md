@@ -10,15 +10,16 @@ Client-side Fabric mod for **Minecraft 26.2** that shows an in-game price-histor
 - **Hover + key**: hover an item in any container GUI (inventory, bazaar menu, chests) and press **G** to open its graph.
   With no GUI open, **G** graphs the item in your main hand.
 - **Command**: `/bzgraph <ITEM_ID>` with tab-completion of all bazaar product IDs (e.g. `/bzgraph ENCHANTED_DIAMOND`).
-- **Graph screen**
+- **Graph screen** (a centered panel, about three quarters of the screen)
   - Buy and sell price lines, each toggleable (Buy / Sell buttons).
   - Time ranges **1D / 1W / 1M / 1Y / ALL** (buttons or keys `1`–`5`). `R` forces a refresh. `G` or `Esc` closes.
   - Hover crosshair with date, buy, sell and volume.
   - Y-axis with compact coin formatting (`950`, `1.2k`, `3.4M`, `1.5B`), date x-axis.
   - Header with current / min / max for each visible series.
   - Loading spinner, "Refreshing…" badge, and clear errors: offline, rate limited (auto-retry), not a bazaar item, no data.
-- **Patch notes on the graph**: markers at SkyBlock patch-note release dates. Hover for title, date, summary and the
-  median price before vs. after the patch; click for details. "Patches: Item / All / Off" button (only patches that
+- **Patch notes on the graph**: markers at SkyBlock patch-note release dates. Hover for title, date, what the patch
+  changed *for this item* (when the index has a note for it), the general summary, and the median price before vs.
+  after the patch; click for details. "Patches: Item / All / Off" button (only patches that
   mention the item, all patches, or none). Markers close together merge into one; clicking it lists them.
 - **Patch note browser**: `/bzgraph patches` or `P` on a graph — searchable list with title, date, a short summary,
   mentioned bazaar items (click to graph) and an "Open full post" link to the Hypixel forums.
@@ -53,16 +54,20 @@ The last selected range and line toggles are remembered. `patchIndexUrl` overrid
 Patch notes come from a JSON index you host, not from the forum directly:
 
 - `patch-index/index.json` — the index. Each entry has `id`, `date` (UTC), `version`, `title`, `summary`, `url`,
-  `autoItems` (found by the script), `items` (manual additions) and `excludeItems` (manual removals).
-  The mod uses `autoItems + items − excludeItems`.
+  `autoItems` (found by the script), `items` (manual additions), `excludeItems` (manual removals) and `itemNotes`.
+- `itemNotes` maps a product ID to what the patch changed for that item, e.g.
+  `{"GLOSSY_GEMSTONE": "Drop rate doubled at every Breaking Power."}`. Keys may end in `*` to cover every level
+  (`ENCHANTMENT_KARMA_*`). Once an entry has `itemNotes` (even `{}`), it counts as curated: only the items it names
+  (plus `items`) are relevant, and `autoItems` — just names spotted in the post — is ignored.
+  Without `itemNotes`, the mod uses `autoItems + items − excludeItems`.
 - `patch-index/scripts/update_index.py` — Python 3 (standard library only). Reads the
   [SkyBlock Patch Notes forum](https://hypixel.net/forums/skyblock-patch-notes.158/) RSS feed, fetches each new thread,
   takes the release date from the `[Month Day]` title prefix, and tags bazaar items whose names appear in the post.
   It never overwrites the hand-written fields of existing entries. `--mode backfill` walks the whole forum (seeding),
   `--mode validate` checks the file.
 - `.github/workflows/patch-index.yml` — runs the script every 6 hours and opens/updates a pull request on branch
-  `patch-index/auto`. Before merging: write each new `summary` **in your own words**, fix item tags, and remove
-  `"needsReview": true`. PRs and pushes touching `patch-index/` are validated.
+  `patch-index/auto`. Before merging: write each new `summary` **in your own words**, add `itemNotes` for the items
+  the patch really affects, and remove `"needsReview": true`. PRs and pushes touching `patch-index/` are validated.
   Enable *Settings → Actions → General → Allow GitHub Actions to create and approve pull requests*.
 
 The mod downloads the index once per session (cached 24 h in `config/bzgraph/cache/patch_index.json`, via the same

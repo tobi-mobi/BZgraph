@@ -20,6 +20,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /** Title, date, own-words summary, mentioned items and a link to the full forum post. */
 public final class PatchDetailScreen extends Screen {
@@ -95,7 +96,22 @@ public final class PatchDetailScreen extends Screen {
 		g.text(font, meta, left, y + 1, 0xFFAAAAAA);
 		y += font.lineHeight + 8;
 
+		String note = patch.noteFor(productId);
+		if (note != null) {
+			g.text(font, "What changed for " + productId + ":", left, y, 0xFFFF55FF);
+			y += font.lineHeight + 2;
+			for (FormattedCharSequence line : font.split(Component.literal(note), textW)) {
+				g.text(font, line, left, y, 0xFFFFDDFF);
+				y += font.lineHeight + 1;
+			}
+			y += 6;
+		}
+
 		String summary = patch.summary().isEmpty() ? "No summary yet - open the full post for details." : patch.summary();
+		if (note != null) {
+			g.text(font, "Overall:", left, y, 0xFFAAAAAA);
+			y += font.lineHeight + 2;
+		}
 		for (FormattedCharSequence line : font.split(Component.literal(summary), textW)) {
 			g.text(font, line, left, y, patch.summary().isEmpty() ? 0xFF888888 : 0xFFDDDDDD);
 			y += font.lineHeight + 1;
@@ -116,26 +132,53 @@ public final class PatchDetailScreen extends Screen {
 		}
 
 		itemLinks.clear();
-		List<String> items = patch.items().stream().sorted().toList();
-		if (!items.isEmpty()) {
-			g.text(font, "Mentioned bazaar items (click to graph):", left, y, 0xFFFFFFFF);
+		int bottom = height - 48;
+		if (!patch.itemNotes().isEmpty()) {
+			// Curated: one line per affected item with what changed for it.
+			g.text(font, "Affected bazaar items (click to graph):", left, y, 0xFFFFFFFF);
 			y += font.lineHeight + 3;
-			int colW = Math.max(120, textW / 3);
-			int cols = Math.max(1, textW / colW);
-			int shown = Math.min(items.size(), MAX_ITEMS_SHOWN);
-			for (int i = 0; i < shown; i++) {
-				int x = left + (i % cols) * colW;
-				int iy = y + (i / cols) * (font.lineHeight + 2);
-				if (iy > height - 46) break;
-				String id = font.plainSubstrByWidth(items.get(i), colW - 6);
+			List<Map.Entry<String, String>> notes = patch.sortedNotes();
+			int i = 0;
+			for (; i < notes.size() && y + font.lineHeight <= bottom; i++) {
+				String id = notes.get(i).getKey();
+				boolean link = !id.endsWith("*");
 				int w = font.width(id);
-				boolean hover = mouseX >= x && mouseX <= x + w && mouseY >= iy - 1 && mouseY <= iy + font.lineHeight;
-				g.text(font, Component.literal(id).withStyle(s -> s.withUnderlined(hover)), x, iy, hover ? 0xFFFFFFFF : 0xFF55AAFF);
-				itemLinks.add(new ItemLink(items.get(i), x, iy, w));
+				boolean hover = link && mouseX >= left && mouseX <= left + w && mouseY >= y - 1 && mouseY <= y + font.lineHeight;
+				g.text(font, Component.literal(id).withStyle(st -> st.withUnderlined(hover)), left, y,
+						!link ? 0xFFAAAAAA : hover ? 0xFFFFFFFF : 0xFF55AAFF);
+				if (link) itemLinks.add(new ItemLink(id, left, y, w));
+				int nx = left + w + 6;
+				String text = notes.get(i).getValue();
+				String cut = font.plainSubstrByWidth(text, left + textW - nx);
+				g.text(font, cut.length() < text.length() ? font.plainSubstrByWidth(text, left + textW - nx - 8) + "..." : text,
+						nx, y, 0xFFBBBBBB);
+				y += font.lineHeight + 2;
 			}
-			int rows = (shown + cols - 1) / cols;
-			y += rows * (font.lineHeight + 2);
-			if (items.size() > shown) g.text(font, "+" + (items.size() - shown) + " more", left, y + 2, 0xFF888888);
+			if (i < notes.size()) g.text(font, "+" + (notes.size() - i) + " more", left, y, 0xFF888888);
+		} else {
+			List<String> items = patch.items().stream().sorted().toList();
+			if (!items.isEmpty()) {
+				g.text(font, "Mentioned bazaar items (auto-detected, click to graph):", left, y, 0xFFFFFFFF);
+				y += font.lineHeight + 3;
+				int colW = Math.max(120, textW / 3);
+				int cols = Math.max(1, textW / colW);
+				int shown = Math.min(items.size(), MAX_ITEMS_SHOWN);
+				int drawn = 0;
+				for (int i = 0; i < shown; i++) {
+					int x = left + (i % cols) * colW;
+					int iy = y + (i / cols) * (font.lineHeight + 2);
+					if (iy + font.lineHeight > bottom) break;
+					String id = font.plainSubstrByWidth(items.get(i), colW - 6);
+					int w = font.width(id);
+					boolean hover = mouseX >= x && mouseX <= x + w && mouseY >= iy - 1 && mouseY <= iy + font.lineHeight;
+					g.text(font, Component.literal(id).withStyle(st -> st.withUnderlined(hover)), x, iy, hover ? 0xFFFFFFFF : 0xFF55AAFF);
+					itemLinks.add(new ItemLink(items.get(i), x, iy, w));
+					drawn++;
+				}
+				int rows = (drawn + cols - 1) / cols;
+				y += rows * (font.lineHeight + 2);
+				if (items.size() > drawn) g.text(font, "+" + (items.size() - drawn) + " more", left, y + 2, 0xFF888888);
+			}
 		}
 
 		g.text(font, "Source: hypixel.net forums", left, height - 46, 0xFF666666);

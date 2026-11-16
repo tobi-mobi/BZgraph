@@ -162,10 +162,12 @@ public final class PatchListScreen extends Screen {
 			int tx = listX0 + 4 + Math.max(dateW, 72) + 6;
 			String title = font.plainSubstrByWidth(p.title(), listX1 - tx - 6);
 			g.text(font, title, tx, y + 3, relevant ? 0xFFFF77FF : 0xFFFFFFFF);
-			String sub = p.summary().isEmpty() ? "(no summary yet)" : p.summary();
-			String items = p.items().isEmpty() ? "" : "  · " + p.items().size() + " items";
+			// With an item in context, prefer what changed for that item over the general summary.
+			String note = p.noteFor(productId);
+			String sub = note != null ? note : p.summary().isEmpty() ? "(no summary yet)" : p.summary();
+			String items = note != null || p.items().isEmpty() ? "" : "  · " + p.items().size() + " items";
 			g.text(font, font.plainSubstrByWidth(sub, listX1 - tx - 6 - font.width(items)) + items, tx, y + 13,
-					p.summary().isEmpty() ? 0xFF666666 : 0xFF999999);
+					note != null ? 0xFFFFBBFF : p.summary().isEmpty() ? 0xFF666666 : 0xFF999999);
 		}
 		g.disableScissor();
 

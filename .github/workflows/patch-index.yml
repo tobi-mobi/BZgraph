@@ -95,7 +95,10 @@ jobs:
 
           Before merging, for each entry with `"needsReview": true`:
           - write a 1–3 sentence `summary` **in your own words** (don't paste the forum post),
-          - check `autoItems`; add missed product IDs to `items`, wrong ones to `excludeItems`,
+          - add `itemNotes` for the bazaar items the patch really affects, e.g.
+            `"itemNotes": {"GLOSSY_GEMSTONE": "Drop rate doubled at every Breaking Power."}`
+            (keys may end in `*`, like `ENCHANTMENT_KARMA_*`; use `{}` if no bazaar item is affected).
+            Once `itemNotes` exists, `autoItems` is ignored — it's only a hint list of names found in the post,
           - remove `"needsReview": true`.
 
           The mod only reads the default branch, so nothing reaches players until this is merged.

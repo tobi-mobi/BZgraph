@@ -285,6 +285,15 @@ def validate(index: dict) -> list[str]:
                 errors.append(f"{where}: '{key}' must be a list of strings")
         if not isinstance(p.get("summary", ""), str):
             errors.append(f"{where}: summary must be a string")
+        # Optional, hand-written: {"PRODUCT_ID": "what changed for it"}; keys may end in * (prefix match).
+        # Once present (even {}), the mod ignores autoItems for this entry.
+        notes = p.get("itemNotes")
+        if notes is not None:
+            if not isinstance(notes, dict) or not all(
+                    isinstance(k, str) and isinstance(v, str) and k.strip() for k, v in notes.items()):
+                errors.append(f"{where}: 'itemNotes' must map item IDs to strings")
+            elif any(k != k.upper() for k in notes):
+                errors.append(f"{where}: 'itemNotes' keys must be upper-case product IDs")
     return errors
 
 

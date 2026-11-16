@@ -44,6 +44,9 @@ public final class GraphScreen extends Screen {
 	private static final int COLOR_WARN = 0xFFFFFF55;
 	private static final int COLOR_LINK = 0xFF55AAFF;
 	private static final int Y_AXIS_W = 42;
+	private static final int PAD = 8;
+	private static final int COLOR_PANEL_BG = 0xE0101014;
+	private static final int COLOR_PANEL_BORDER = 0xFF3A3A44;
 	private static final int COLOR_PATCH = 0xFFFF55FF;
 	private static final int COLOR_PATCH_LINE = 0x90FF55FF;
 	private static final int COLOR_PATCH_OTHER = 0x40FFFFFF;
@@ -85,7 +88,8 @@ public final class GraphScreen extends Screen {
 
 	private List<Cluster> clusters = List.of();
 
-	// Layout
+	// Layout: the whole graph lives in a centered panel (px0..px1, py0..py1)
+	private int px0, py0, px1, py1;
 	private int gx0, gy0, gx1, gy1;
 	private int attrX, attrY, attrW;
 
@@ -111,15 +115,22 @@ public final class GraphScreen extends Screen {
 
 	@Override
 	protected void init() {
-		int top = 8;
-		int buttonsY = top + 34;
-		gx0 = 10 + Y_AXIS_W;
-		gx1 = width - 12;
-		gy0 = buttonsY + 28;
-		gy1 = height - 32;
+		// ~3/4 of the screen, but never so small the buttons overlap or so big it feels full-screen
+		int pw = Math.min(width - 16, clamp(Math.round(width * 0.72f), 404, 560));
+		int ph = Math.min(height - 16, clamp(Math.round(height * 0.78f), 240, 330));
+		px0 = (width - pw) / 2;
+		py0 = (height - ph) / 2;
+		px1 = px0 + pw;
+		py1 = py0 + ph;
+
+		int buttonsY = py0 + 32;
+		gx0 = px0 + PAD + Y_AXIS_W;
+		gx1 = px1 - PAD - 2;
+		gy0 = buttonsY + 30;
+		gy1 = py1 - 26;
 
 		rangeButtons.clear();
-		int x = 10;
+		int x = px0 + PAD;
 		for (TimeRange r : TimeRange.values()) {
 			Button b = Button.builder(Component.literal(r.label()), btn -> selectRange(r))
 					.bounds(x, buttonsY, 32, 20).build();
@@ -128,11 +139,11 @@ public final class GraphScreen extends Screen {
 			x += 34;
 		}
 		sellButton = addRenderableWidget(Button.builder(Component.empty(), b -> toggle(false))
-				.bounds(width - 10 - 64, buttonsY, 64, 20).build());
+				.bounds(px1 - PAD - 56, buttonsY, 56, 20).build());
 		buyButton = addRenderableWidget(Button.builder(Component.empty(), b -> toggle(true))
-				.bounds(width - 10 - 64 - 2 - 64, buttonsY, 64, 20).build());
+				.bounds(px1 - PAD - 56 - 2 - 56, buttonsY, 56, 20).build());
 		patchButton = addRenderableWidget(Button.builder(Component.empty(), b -> cycleMarkers())
-				.bounds(width - 10 - 64 - 2 - 64 - 2 - 84, buttonsY, 84, 20).build());
+				.bounds(px1 - PAD - 56 - 2 - 56 - 2 - 84, buttonsY, 84, 20).build());
 		updateToggleLabels();
 		boolean hasProduct = productId != null;
 		buyButton.active = sellButton.active = patchButton.active = hasProduct;
@@ -140,12 +151,16 @@ public final class GraphScreen extends Screen {
 		rangeButtons.forEach(b -> b.active &= hasProduct);
 
 		attrW = font.width(ATTRIBUTION);
-		attrX = 10;
-		attrY = height - 14;
+		attrX = px0 + PAD;
+		attrY = py1 - 12;
 
 		if (hasProduct && (handle == null || handle.range() != range)) {
 			handle = BzGraphClient.get().repository().load(productId, range);
 		}
+	}
+
+	private static int clamp(int v, int lo, int hi) {
+		return Math.max(lo, Math.min(hi, v));
 	}
 
 	private void selectRange(TimeRange r) {
@@ -270,7 +285,12 @@ public final class GraphScreen extends Screen {
 
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
-		g.fill(gx0 - Y_AXIS_W - 2, gy0 - 4, gx1 + 2, gy1 + 14, COLOR_PANEL);
+		g.fill(px0, py0, px1, py1, COLOR_PANEL_BG);
+		g.horizontalLine(px0, px1 - 1, py0, COLOR_PANEL_BORDER);
+		g.horizontalLine(px0, px1 - 1, py1 - 1, COLOR_PANEL_BORDER);
+		g.verticalLine(px0, py0, py1 - 1, COLOR_PANEL_BORDER);
+		g.verticalLine(px1 - 1, py0, py1 - 1, COLOR_PANEL_BORDER);
+		g.fill(gx0, gy0, gx1 + 1, gy1, COLOR_PANEL);
 		drawHeader(g);
 		drawAttribution(g, mouseX, mouseY);
 
@@ -308,13 +328,13 @@ public final class GraphScreen extends Screen {
 		String name = displayName != null && !displayName.isBlank() ? displayName : productId;
 		String title = name == null ? "BZgraph" : name;
 		if (productId != null && displayName != null && !productId.equals(displayName)) {
-			g.text(font, Component.literal(title).append(Component.literal("  " + productId).withStyle(ChatFormatting.DARK_GRAY)), 10, 8, COLOR_TEXT);
+			g.text(font, Component.literal(title).append(Component.literal("  " + productId).withStyle(ChatFormatting.DARK_GRAY)), px0 + PAD, py0 + PAD, COLOR_TEXT);
 		} else {
-			g.text(font, title, 10, 8, COLOR_TEXT);
+			g.text(font, title, px0 + PAD, py0 + PAD, COLOR_TEXT);
 		}
 		if (times.length == 0) return;
-		int y = 20;
-		int x = 10;
+		int y = py0 + PAD + 11;
+		int x = px0 + PAD;
 		if (showBuy) x = drawStats(g, "Buy", buys, COLOR_BUY, x, y) + 16;
 		if (showSell) drawStats(g, "Sell", sells, COLOR_SELL, x, y);
 	}
@@ -342,8 +362,9 @@ public final class GraphScreen extends Screen {
 		boolean hover = overAttribution(mx, my);
 		Component c = Component.literal(ATTRIBUTION).withStyle(s -> s.withUnderlined(hover));
 		g.text(font, c, attrX, attrY, hover ? COLOR_TEXT : COLOR_LINK);
-		String hint = productId == null ? "" : "1-5: range   P: patch notes   R: refresh   Esc: close";
-		g.text(font, hint, width - 10 - font.width(hint), attrY, 0xFF666666);
+		String hint = productId == null ? "" : "1-5 range · P patches · R refresh";
+		int hx = px1 - PAD - font.width(hint);
+		if (hx > attrX + attrW + 8) g.text(font, hint, hx, attrY, 0xFF666666);
 	}
 
 	private void drawCentered(GuiGraphicsExtractor g, String msg, int color) {
@@ -386,8 +407,8 @@ public final class GraphScreen extends Screen {
 			}
 		}
 		int w = font.width(msg);
-		g.text(font, msg, width - 10 - w, 8, color);
-		if (h.isBusy()) drawSpinnerSmall(g, width - 10 - w - 8, 11);
+		g.text(font, msg, px1 - PAD - w, py0 + PAD, color);
+		if (h.isBusy()) drawSpinnerSmall(g, px1 - PAD - w - 8, py0 + PAD + 3);
 	}
 
 	private void drawSpinnerSmall(GuiGraphicsExtractor g, int cx, int cy) {
@@ -534,10 +555,17 @@ public final class GraphScreen extends Screen {
 			lines.addAll(font.split(Component.literal(p.title()).withColor(c.relevant() ? COLOR_PATCH : COLOR_TEXT), wrap));
 			lines.add(Component.literal(PatchDetailScreen.DATE.format(p.date().atZone(ZoneId.systemDefault()))
 					+ (p.version() != null ? "  v" + p.version() : "")).withColor(COLOR_DIM).getVisualOrderText());
+			String note = p.noteFor(productId);
+			if (note != null) {
+				lines.add(Component.literal("For this item:").withColor(COLOR_PATCH).getVisualOrderText());
+				List<FormattedCharSequence> nl = font.split(Component.literal(note).withColor(0xFFFFDDFF), wrap);
+				lines.addAll(nl.subList(0, Math.min(5, nl.size())));
+			}
 			if (!p.summary().isEmpty()) {
-				List<FormattedCharSequence> sum = font.split(Component.literal(p.summary()).withColor(0xFFDDDDDD), wrap);
-				lines.addAll(sum.subList(0, Math.min(3, sum.size())));
-				if (sum.size() > 3) lines.add(Component.literal("...").withColor(COLOR_DIM).getVisualOrderText());
+				int max = note != null ? 2 : 3; // the general summary matters less once we have an item note
+				List<FormattedCharSequence> sum = font.split(Component.literal(p.summary()).withColor(note != null ? 0xFF999999 : 0xFFDDDDDD), wrap);
+				lines.addAll(sum.subList(0, Math.min(max, sum.size())));
+				if (sum.size() > max) lines.add(Component.literal("...").withColor(COLOR_DIM).getVisualOrderText());
 			}
 			List<PricePoint> pts = historyPoints();
 			if (!pts.isEmpty()) {
