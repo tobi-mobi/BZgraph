@@ -82,6 +82,23 @@ class HistoryParserTest {
 	}
 
 	@Test
+	void snapshotParsed() {
+		PricePoint p = HistoryParser.parseSnapshot("""
+				{"productId":"ENCHANTED_DIAMOND","buyPrice":1281.8,"buyVolume":6113072,"buyMovingWeek":5236513,
+				 "sellPrice":1257.9,"sellVolume":4842062,"timeStamp":"2026-11-16T16:46:48.979",
+				 "buyOrders":[{"amount":505,"pricePerUnit":1281.8,"orders":3}]}""");
+		assertEquals(Instant.parse("2026-11-16T16:46:48.979Z"), p.timestamp());
+		assertEquals(1281.8, p.buy(), 1e-9);
+		assertEquals(1257.9, p.sell(), 1e-9);
+		assertEquals(6113072, p.buyVolume(), 1e-9);
+
+		PricePoint noSellers = HistoryParser.parseSnapshot("{\"buyPrice\":0,\"sellPrice\":5,\"timeStamp\":\"2026-11-16T16:46:48\"}");
+		assertTrue(Double.isNaN(noSellers.buy()), "0 = no orders, not a price of 0");
+		assertThrows(JsonParseException.class, () -> HistoryParser.parseSnapshot("{\"buyPrice\":1}"));
+		assertThrows(JsonParseException.class, () -> HistoryParser.parseSnapshot("[]"));
+	}
+
+	@Test
 	void bazaarProductIdsParsed() {
 		var ids = BazaarProducts.parseProductIds("{\"success\":true,\"products\":{\"ENCHANTED_DIAMOND\":{},\"INK_SACK:3\":{}}}");
 		assertEquals(java.util.Set.of("ENCHANTED_DIAMOND", "INK_SACK:3"), ids);
@@ -103,5 +120,6 @@ class HistoryParserTest {
 		ApiClient c = new ApiClient(null, null, "test", ApiClient.COFL_BASE);
 		String uri = c.historyUri("INK_SACK:3", Instant.parse("1970-01-01T00:00:00Z"), Instant.parse("2026-11-16T12:34:56.789Z")).toString();
 		assertEquals("https://sky.coflnet.com/api/bazaar/INK_SACK%3A3/history?start=1970-01-01T00:00:00Z&end=2026-11-16T12:34:56Z", uri);
+		assertEquals("https://sky.coflnet.com/api/bazaar/INK_SACK%3A3/snapshot", c.snapshotUri("INK_SACK:3").toString());
 	}
 }

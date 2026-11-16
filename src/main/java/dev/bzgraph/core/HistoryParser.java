@@ -43,6 +43,28 @@ public final class HistoryParser {
 	}
 
 	/**
+	 * Parses a SkyCofl {@code /api/bazaar/{id}/snapshot} response (current prices) into one point. Its
+	 * {@code buyPrice}/{@code sellPrice} match the history's {@code buy}/{@code sell}.
+	 *
+	 * @throws JsonParseException if it isn't an object with a usable timestamp
+	 */
+	public static PricePoint parseSnapshot(String json) {
+		JsonElement root = JsonParser.parseString(json);
+		if (!root.isJsonObject()) throw new JsonParseException("Snapshot is not an object");
+		JsonObject o = root.getAsJsonObject();
+		Instant ts = parseTimestamp(str(o, "timeStamp"));
+		if (ts == null) ts = parseTimestamp(str(o, "timestamp"));
+		if (ts == null) throw new JsonParseException("Snapshot has no timestamp");
+		return new PricePoint(ts, positive(num(o, "buyPrice")), positive(num(o, "sellPrice")),
+				num(o, "buyVolume"), num(o, "sellVolume"));
+	}
+
+	/** A price of 0 means "no orders" in snapshots; treat it as missing rather than plotting a crash to 0. */
+	private static double positive(double v) {
+		return v > 0 ? v : Double.NaN;
+	}
+
+	/**
 	 * Parses an ISO-8601 timestamp. Timestamps without zone information are treated as UTC.
 	 * Fractional seconds of any precision are accepted. Returns null if unparseable.
 	 */

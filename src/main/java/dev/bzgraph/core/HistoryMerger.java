@@ -28,6 +28,18 @@ public final class HistoryMerger {
 		return merge(points);
 	}
 
+	/**
+	 * Appends a fine-resolution tail to coarse data: coarse points at or after the tail's first timestamp
+	 * are dropped (they cover the same time with averaged buckets), then the tail is merged in.
+	 */
+	public static List<PricePoint> withTail(Collection<PricePoint> main, Collection<PricePoint> tail) {
+		Instant tailStart = oldest(tail);
+		if (tailStart == null) return merge(main);
+		List<PricePoint> kept = new ArrayList<>(main.size());
+		for (PricePoint p : main) if (p.timestamp().isBefore(tailStart)) kept.add(p);
+		return merge(tail, kept);
+	}
+
 	/** Oldest timestamp in an unsorted list, or null if empty. */
 	public static Instant oldest(Collection<PricePoint> points) {
 		Instant min = null;

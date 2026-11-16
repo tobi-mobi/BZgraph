@@ -1,5 +1,6 @@
 package dev.bzgraph.core;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
@@ -24,8 +25,24 @@ public final class HistoryRepository {
 	private final Consumer<Throwable> errorLog;
 	private final Map<String, CopyOnWriteArrayList<HistoryHandle>> inFlight = new HashMap<>();
 
+	/** Live snapshots are only worth showing while fresh, so they're kept in memory for a minute. */
+	public static final Duration LIVE_TTL = Duration.ofSeconds(60);
+
+	private record Live(PricePoint point, Instant fetchedAt) {
+	}
+
+	private final LiveSource liveSource;
+	private final LruCache<String, Live> liveCache = new LruCache<>(64);
+	private final Map<String, CompletableFuture<PricePoint>> liveInFlight = new HashMap<>();
+
 	public HistoryRepository(HistorySource source, DiskCache disk, int memoryCapacity, Executor io,
 							 Supplier<Instant> clock, Consumer<Throwable> errorLog) {
+		this(source, null, disk, memoryCapacity, io, clock, errorLog);
+	}
+
+	public HistoryRepository(HistorySource source, LiveSource liveSource, DiskCache disk, int memoryCapacity,
+							 Executor io, Supplier<Instant> clock, Consumer<Throwable> errorLog) {
+		this.liveSource = liveSource;
 		this.source = source;
 		this.disk = disk;
 		this.memory = new LruCache<>(memoryCapacity);
@@ -46,8 +63,9 @@ public final class HistoryRepository {
 			if (mem.isFresh(range, clock.get())) {
 				handle.set(HistoryHandle.Status.READY, "");
 			} else {
-				refresh(handle);
+				refreshHistory(handle);
 			}
+			loadLive(handle, false);
 			return handle;
 		}
 		CompletableFuture.runAsync(() -> {
@@ -60,17 +78,60 @@ public final class HistoryRepository {
 					return;
 				}
 			}
-			refresh(handle);
+			refreshHistory(handle);
 		}, io).exceptionally(t -> {
 			errorLog.accept(t);
-			refresh(handle);
+			refreshHistory(handle);
 			return null;
-		});
+		}).thenRun(() -> loadLive(handle, false)); // after the history requests, so those are queued first
 		return handle;
 	}
 
-	/** Forces a network refresh regardless of TTL. */
+	/** Forces a network refresh of history and live price, regardless of TTL. */
 	public void refresh(HistoryHandle handle) {
+		refreshHistory(handle);
+		loadLive(handle, true);
+	}
+
+	/**
+	 * Fetches the current price (reusing one under {@link #LIVE_TTL} old unless forced). Failures are only
+	 * logged: the graph simply ends at the last history point.
+	 */
+	void loadLive(HistoryHandle handle, boolean force) {
+		if (liveSource == null) return;
+		String id = handle.itemId();
+		Live cached = liveCache.get(id);
+		if (!force && cached != null && clock.get().isBefore(cached.fetchedAt().plus(LIVE_TTL))) {
+			handle.setLive(cached.point());
+			return;
+		}
+		if (cached != null) handle.setLive(cached.point()); // show the older one until the new one arrives
+		CompletableFuture<PricePoint> f;
+		synchronized (liveInFlight) {
+			f = liveInFlight.get(id);
+			if (f == null) {
+				try {
+					f = liveSource.snapshot(id);
+				} catch (RuntimeException e) {
+					f = CompletableFuture.failedFuture(e);
+				}
+				liveInFlight.put(id, f);
+				CompletableFuture<PricePoint> mine = f;
+				f.whenComplete((p, err) -> {
+					synchronized (liveInFlight) {
+						liveInFlight.remove(id, mine);
+					}
+					if (err == null && p != null) liveCache.put(id, new Live(p, clock.get()));
+				});
+			}
+		}
+		f.whenComplete((p, err) -> {
+			if (err == null && p != null) handle.setLive(p);
+			else if (err != null) errorLog.accept(err);
+		});
+	}
+
+	private void refreshHistory(HistoryHandle handle) {
 		handle.startRequest();
 		String key = key(handle.itemId(), handle.range());
 		CopyOnWriteArrayList<HistoryHandle> waiters;

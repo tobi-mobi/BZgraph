@@ -23,6 +23,8 @@ public final class HistoryHandle {
 	private volatile CachedHistory data;
 	private volatile Status status = Status.LOADING;
 	private volatile String message = "";
+	/** Current price from the live snapshot (newer than the history's last point), or null. */
+	private volatile PricePoint live;
 
 	public HistoryHandle(String itemId, TimeRange range) {
 		this.itemId = itemId;
@@ -52,6 +54,14 @@ public final class HistoryHandle {
 	public boolean isBusy() {
 		Status s = status;
 		return s == Status.LOADING || s == Status.REFRESHING || s == Status.RATE_LIMITED;
+	}
+
+	public PricePoint live() {
+		return live;
+	}
+
+	void setLive(PricePoint live) {
+		this.live = live;
 	}
 
 	void setData(CachedHistory data) {

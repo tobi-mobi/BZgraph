@@ -74,6 +74,9 @@ public final class GraphScreen extends Screen implements BzScreen {
 
 	// Arrays derived from the handle's data, rebuilt when data or range changes.
 	private CachedHistory builtFrom;
+	private PricePoint builtLive;
+	/** Index of the appended live-snapshot point in the arrays, or -1. */
+	private int liveIndex = -1;
 	private long[] times = new long[0];
 	private double[] buys = new double[0];
 	private double[] sells = new double[0];
@@ -363,7 +366,7 @@ public final class GraphScreen extends Screen implements BzScreen {
 
 		HistoryHandle h = handle;
 		CachedHistory data = h == null ? null : h.data();
-		rebuildArrays(data);
+		rebuildArrays(data, h == null ? null : h.live());
 		HistoryHandle.Status status = h == null ? HistoryHandle.Status.LOADING : h.status();
 
 		if (times.length == 0) {
@@ -486,27 +489,33 @@ public final class GraphScreen extends Screen implements BzScreen {
 		}
 	}
 
-	private void rebuildArrays(CachedHistory data) {
-		if (data == builtFrom) return;
+	private void rebuildArrays(CachedHistory data, PricePoint live) {
+		if (data == builtFrom && live == builtLive) return;
 		builtFrom = data;
-		if (data == null) {
+		builtLive = live;
+		liveIndex = -1;
+		if (data == null || data.points().isEmpty()) {
 			times = new long[0];
 			buys = sells = vols = new double[0];
 			return;
 		}
 		List<PricePoint> pts = data.points();
-		int n = pts.size();
+		// The live snapshot becomes the last point when it's newer than the history (SkyCofl's history
+		// trails live prices by ~10 minutes).
+		boolean addLive = live != null && live.timestamp().isAfter(pts.getLast().timestamp());
+		int n = pts.size() + (addLive ? 1 : 0);
 		times = new long[n];
 		buys = new double[n];
 		sells = new double[n];
 		vols = new double[n];
 		for (int i = 0; i < n; i++) {
-			PricePoint p = pts.get(i);
+			PricePoint p = i < pts.size() ? pts.get(i) : live;
 			times[i] = p.timestamp().toEpochMilli();
 			buys[i] = p.buy();
 			sells[i] = p.sell();
 			vols[i] = p.volume();
 		}
+		if (addLive) liveIndex = n - 1;
 	}
 
 	private void drawGraph(GuiGraphicsExtractor g, int mx, int my) {
@@ -564,6 +573,7 @@ public final class GraphScreen extends Screen implements BzScreen {
 		if (showSell) drawSeries(g, Downsampler.columns(times, sells, tMin, tMax, w), lo, hi, COLOR_SELL);
 		if (showBuy) drawSeries(g, Downsampler.columns(times, buys, tMin, tMax, w), lo, hi, COLOR_BUY);
 
+		drawLiveMarker(g, tMin, tMax, lo, hi);
 		drawPatchMarkers(g, tMin, tMax);
 		Cluster hc = hoveredCluster(mx, my);
 		if (hc != null) {
@@ -656,6 +666,23 @@ public final class GraphScreen extends Screen implements BzScreen {
 		g.setTooltipForNextFrame(font, lines, mx, my);
 	}
 
+	/** Pulsing dot on the live price so it reads as "now", not just another sample. */
+	private void drawLiveMarker(GuiGraphicsExtractor g, long tMin, long tMax, double lo, double hi) {
+		if (liveIndex < 0) return;
+		int x = gx0 + (int) Math.round((double) (times[liveIndex] - tMin) / (tMax - tMin) * (gx1 - gx0));
+		int glow = (int) (60 + 60 * Math.sin(System.currentTimeMillis() / 250.0));
+		if (showBuy && !Double.isNaN(buys[liveIndex])) {
+			int y = yFor(buys[liveIndex], lo, hi);
+			g.fill(x - 3, y - 3, x + 4, y + 4, (glow << 24) | (COLOR_BUY & 0xFFFFFF));
+			dot(g, x, y, COLOR_BUY);
+		}
+		if (showSell && !Double.isNaN(sells[liveIndex])) {
+			int y = yFor(sells[liveIndex], lo, hi);
+			g.fill(x - 3, y - 3, x + 4, y + 4, (glow << 24) | (COLOR_SELL & 0xFFFFFF));
+			dot(g, x, y, COLOR_SELL);
+		}
+	}
+
 	private int yFor(double v, double lo, double hi) {
 		return gy1 - (int) Math.round((v - lo) / (hi - lo) * (gy1 - gy0));
 	}
@@ -705,7 +732,13 @@ public final class GraphScreen extends Screen implements BzScreen {
 		if (showSell && !Double.isNaN(sells[idx])) dot(g, px, yFor(sells[idx], lo, hi), COLOR_SELL);
 
 		List<Component> lines = new ArrayList<>();
-		lines.add(Component.literal(FMT_TOOLTIP.format(Instant.ofEpochMilli(times[idx]).atZone(ZoneId.systemDefault()))).withColor(COLOR_TEXT));
+		String when = FMT_TOOLTIP.format(Instant.ofEpochMilli(times[idx]).atZone(ZoneId.systemDefault()));
+		if (idx == liveIndex) {
+			lines.add(Component.literal("Latest price  ").withColor(0xFF55FF55)
+					.append(Component.literal(when).withColor(COLOR_DIM)));
+		} else {
+			lines.add(Component.literal(when).withColor(COLOR_TEXT));
+		}
 		lines.add(Component.literal("Buy:  ").withColor(COLOR_BUY).append(Component.literal(CoinFormat.full(buys[idx])).withColor(COLOR_TEXT)));
 		lines.add(Component.literal("Sell: ").withColor(COLOR_SELL).append(Component.literal(CoinFormat.full(sells[idx])).withColor(COLOR_TEXT)));
 		lines.add(Component.literal("Volume: ").withColor(COLOR_DIM).append(Component.literal(CoinFormat.compact(vols[idx])).withColor(COLOR_TEXT)));

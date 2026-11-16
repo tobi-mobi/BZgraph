@@ -22,7 +22,7 @@ import java.util.concurrent.CompletableFuture;
  * HTTP client for SkyCofl bazaar history and the Hypixel bazaar product list.
  * Every request goes through one {@link RequestQueue}; requests never run on the caller's thread.
  */
-public final class ApiClient implements HistorySource {
+public final class ApiClient implements HistorySource, LiveSource {
 	public static final String COFL_BASE = "https://sky.coflnet.com";
 	public static final String HYPIXEL_BAZAAR = "https://api.hypixel.net/v2/skyblock/bazaar";
 	static final int MAX_RATE_LIMIT_RETRIES = 4;
@@ -70,6 +70,23 @@ public final class ApiClient implements HistorySource {
 				return HistoryParser.parse(r.body);
 			} catch (JsonParseException | IllegalStateException e) {
 				throw new ApiException(ApiException.Kind.BAD_RESPONSE, "Malformed history response", e);
+			}
+		});
+	}
+
+	public URI snapshotUri(String itemId) {
+		return URI.create(coflBase + "/api/bazaar/" + URLEncoder.encode(itemId, StandardCharsets.UTF_8) + "/snapshot");
+	}
+
+	@Override
+	public CompletableFuture<PricePoint> snapshot(String itemId) {
+		return get(snapshotUri(itemId), Listener.NONE, MAX_RATE_LIMIT_RETRIES).thenApply(r -> {
+			if (r.status == 404) throw new ApiException(ApiException.Kind.NOT_FOUND, "Item not found: " + itemId);
+			checkOk(r);
+			try {
+				return HistoryParser.parseSnapshot(r.body);
+			} catch (JsonParseException | IllegalStateException e) {
+				throw new ApiException(ApiException.Kind.BAD_RESPONSE, "Malformed snapshot response", e);
 			}
 		});
 	}

@@ -90,7 +90,7 @@ public final class BzGraphClient implements ClientModInitializer {
 			t.setDaemon(true);
 			return t;
 		});
-		repository = new HistoryRepository(api, new DiskCache(dir.resolve("cache")), 64, io, Instant::now,
+		repository = new HistoryRepository(api, api, new DiskCache(dir.resolve("cache")), 64, io, Instant::now,
 				t -> LOGGER.warn("BZgraph background error", t));
 
 		defaultPatchIndexUrl = FabricLoader.getInstance().getModContainer(MOD_ID)

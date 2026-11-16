@@ -88,7 +88,13 @@ Patch markers show *timing*, not cause — prices also move with events, mayors 
 ## How it works
 
 - History: `GET https://sky.coflnet.com/api/bazaar/{ITEM_ID}/history?start=…&end=…`.
-  The **ALL** range makes two requests (the API caps responses at 2000 points) and merges/dedupes them.
+  SkyCofl picks the resolution from the window length: up to ~12 hours comes back at ~3-minute steps reaching about
+  10 minutes ago, while longer windows come back as 2-hour (or daily) buckets whose newest bucket can be hours old.
+  So **1D** is fetched as two 12-hour windows, and every longer range also fetches the last 12 hours as a fine
+  "tail" that replaces the coarse buckets it overlaps. **ALL** additionally makes two requests (the API caps
+  responses at 2000 points) and merges/dedupes them.
+- Latest price: `GET https://sky.coflnet.com/api/bazaar/{ITEM_ID}/snapshot` (refreshed by SkyCofl every few minutes)
+  is added as the final, highlighted point. It's fetched when a graph opens or you press `R`, and reused for 60 s.
 - Product list for validation / tab-completion: `GET https://api.hypixel.net/v2/skyblock/bazaar` (no API key), fetched once per session.
 - All HTTP goes through a single background queue with **≥1 s spacing** between requests; HTTP 429 honours `Retry-After`.
   Nothing ever blocks the render thread. User-Agent: `bzgraph/<version>`.

@@ -84,10 +84,10 @@ class CacheTest {
 	@Test
 	void repositoryServesFreshCacheWithoutNetworkAndRefreshesStale(@TempDir Path dir) throws Exception {
 		AtomicReference<Instant> now = new AtomicReference<>(T0);
-		AtomicInteger calls = new AtomicInteger();
+		AtomicInteger calls = new AtomicInteger(); // counts fetch rounds (the recent 12h half of each 1D fetch)
 		HistorySource src = (id, s, e, l) -> {
-			calls.incrementAndGet();
-			return CompletableFuture.completedFuture(List.of(new PricePoint(now.get(), calls.get(), 1, 0, 0)));
+			if (e.equals(now.get()) && s.equals(e.minus(HistoryFetcher.FINE_WINDOW))) calls.incrementAndGet();
+			return CompletableFuture.completedFuture(List.of(new PricePoint(e, calls.get(), 1, 0, 0))); // one point at window end
 		};
 		DiskCache disk = new DiskCache(dir);
 		HistoryRepository repo = new HistoryRepository(src, disk, 8, Runnable::run, now::get, Throwable::printStackTrace);
@@ -113,7 +113,7 @@ class CacheTest {
 		HistoryHandle h3 = repo2.load("X", TimeRange.DAY);
 		assertEquals(2, calls.get());
 		assertEquals(HistoryHandle.Status.READY, h3.status());
-		assertEquals(2, h3.data().points().getFirst().buy());
+		assertEquals(2, h3.data().points().getLast().buy());
 	}
 
 	@Test
@@ -131,6 +131,42 @@ class CacheTest {
 		pending.complete(List.of(new PricePoint(T0, 8, 8, 0, 0)));
 		assertEquals(HistoryHandle.Status.READY, h.status());
 		assertEquals(8, h.data().points().getFirst().buy());
+	}
+
+	@Test
+	void liveSnapshotIsFetchedOnLoadAndCachedForAMinute() {
+		AtomicReference<Instant> now = new AtomicReference<>(T0);
+		AtomicInteger snaps = new AtomicInteger();
+		LiveSource live = id -> {
+			snaps.incrementAndGet();
+			return CompletableFuture.completedFuture(new PricePoint(now.get(), 42, 41, 0, 0));
+		};
+		HistorySource src = (id, s, e, l) -> CompletableFuture.completedFuture(List.of(new PricePoint(T0.minusSeconds(600), 1, 1, 0, 0)));
+		HistoryRepository repo = new HistoryRepository(src, live, null, 8, Runnable::run, now::get, t -> {});
+
+		HistoryHandle h = repo.load("X", TimeRange.DAY);
+		assertEquals(1, snaps.get());
+		assertEquals(42, h.live().buy());
+
+		now.set(T0.plusSeconds(30)); // within LIVE_TTL: reused, even for another range
+		assertEquals(42, repo.load("X", TimeRange.WEEK).live().buy());
+		assertEquals(1, snaps.get());
+
+		repo.refresh(h); // R key: forced
+		assertEquals(2, snaps.get());
+
+		now.set(T0.plus(HistoryRepository.LIVE_TTL).plusSeconds(31));
+		repo.load("X", TimeRange.DAY);
+		assertEquals(3, snaps.get());
+	}
+
+	@Test
+	void liveFailureIsHarmless() {
+		HistorySource src = (id, s, e, l) -> CompletableFuture.completedFuture(List.of(new PricePoint(T0, 1, 1, 0, 0)));
+		LiveSource broken = id -> CompletableFuture.failedFuture(new ApiException(ApiException.Kind.OFFLINE, "x"));
+		HistoryHandle h = new HistoryRepository(src, broken, null, 8, Runnable::run, () -> T0, t -> {}).load("X", TimeRange.DAY);
+		assertEquals(HistoryHandle.Status.READY, h.status());
+		assertNull(h.live());
 	}
 
 	@Test
