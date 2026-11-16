@@ -7,13 +7,16 @@
       "date": "2026-11-11T20:23:29Z",
       "version": null,
       "title": "[November 11] SkyBlock Patch Notes",
-      "summary": "High-ping mining improvements: leftover break time now carries over to the next block, and partial progress is kept when you look away. Hard Stone in the Crystal Hollows can be mined client-side, so Hard Stone rates go up slightly.",
+      "summary": "High-ping mining improvements: leftover break time now carries over to the next block, and partial progress is kept when you look away. Hard Stone can now be mined client-side.",
       "url": "https://hypixel.net/threads/november-11-skyblock-patch-notes.6171561/",
       "autoItems": [
         "HARD_STONE"
       ],
       "items": [],
-      "excludeItems": []
+      "excludeItems": [],
+      "itemNotes": {
+        "HARD_STONE": "Can now be mined client-side (no ping delay) in the Crystal Hollows, so Hard Stone mining rates go up slightly."
+      }
     },
     {
       "id": "t6167069",
@@ -26,12 +29,12 @@
         "BACHELOR_ROSE",
         "LOTUS"
       ],
-      "items": [
-        "CHEESEBITE"
-      ],
-      "excludeItems": [
-        "LOTUS"
-      ]
+      "items": [],
+      "excludeItems": [],
+      "itemNotes": {
+        "BACHELOR_ROSE": "Can now also be given to the Vargul visitor.",
+        "CHEESEBITE": "Analyzing a Cheesebite now costs 160,000 coins."
+      }
     },
     {
       "id": "t6165200",
@@ -50,18 +53,23 @@
         "ENCHANTMENT_GREEN_THUMB_5"
       ],
       "items": [],
-      "excludeItems": []
+      "excludeItems": [],
+      "itemNotes": {
+        "BACHELOR_ROSE": "Now required to recruit SPECIAL visitors (Spaceman, Taylor) once you meet their requirement, so more demand.",
+        "ECTOPLASM": "New source: Ghost Visitors pay Ectoplasm for mutations around Spooky Festivals. Also used to craft the new Poltergeist Pitchfork."
+      }
     },
     {
       "id": "t6163138",
       "date": "2026-10-15T21:56:11Z",
       "version": null,
       "title": "[October 15] SkyBlock Patch Notes",
-      "summary": "Bug fixes: powder no longer resets at the 2 billion cap, and fixes for fusion requirements, Greenhouse Moonflowers, and the Trick or Treat Bag.",
+      "summary": "Bug fixes: powder no longer resets at the 2 billion cap, plus fixes for fusion requirements, Greenhouse Moonflowers and the Trick or Treat Bag.",
       "url": "https://hypixel.net/threads/october-15-skyblock-patch-notes.6163138/",
       "autoItems": [],
       "items": [],
-      "excludeItems": []
+      "excludeItems": [],
+      "itemNotes": {}
     },
     {
       "id": "t6162447",
@@ -74,32 +82,39 @@
         "GLOSSY_GEMSTONE",
         "REFINED_MINERAL"
       ],
-      "items": [
-        "SHARD_SCATHA",
-        "SHARD_STONEWORM"
-      ],
-      "excludeItems": []
+      "items": [],
+      "excludeItems": [],
+      "itemNotes": {
+        "GLOSSY_GEMSTONE": "Drop rate doubled at every Breaking Power (e.g. BP9 0.09% -> 0.18%), and an active Fiesta Flask adds +100% more. Expect more supply.",
+        "REFINED_MINERAL": "Drop rate doubled at every Breaking Power (BP1 0.01% -> 0.02% up to BP9 0.09% -> 0.18%), and an active Fiesta Flask adds +100% more. Expect more supply.",
+        "SHARD_SCATHA": "Its effect is doubled while a Fiesta Flask is active.",
+        "SHARD_STONEWORM": "Its effect is doubled while a Fiesta Flask is active."
+      }
     },
     {
       "id": "t6162434",
       "date": "2026-10-13T16:00:26Z",
       "version": null,
       "title": "[October 13] SkyBlock Patch Notes",
-      "summary": "Greenhouse and combat fixes, including Plant Yield no longer wrongly boosting mutation items and Ethereal Vine drops. Several Fishing XP sources were corrected; the team notes Glossy Gemstone rates are too low and a fix is coming.",
+      "summary": "Greenhouse and combat fixes, including Plant Yield no longer wrongly boosting mutation items and Ethereal Vine drops. Several Fishing XP sources were corrected.",
       "url": "https://hypixel.net/threads/october-13-skyblock-patch-notes.6162434/",
       "autoItems": [
         "ETHEREAL_VINE",
         "GLOSSY_GEMSTONE"
       ],
       "items": [],
-      "excludeItems": []
+      "excludeItems": [],
+      "itemNotes": {
+        "ETHEREAL_VINE": "Bug fix: Plant Yield bonuses were wrongly increasing Ethereal Vine drops; that extra supply is gone.",
+        "GLOSSY_GEMSTONE": "Developers said drop rates were lower than intended and promised a fix (the buff landed the next day)."
+      }
     },
     {
       "id": "t6160240",
       "date": "2026-10-06T14:46:30Z",
       "version": "0.27.2",
       "title": "Hypixel SkyBlock 0.27.2 - The Minister Update, Greenhouse QOL, and More!",
-      "summary": "0.27.2: adds all the Minister perks (Precursor Drone mods, a year-long Mining Fiesta with Fiesta Flasks, bait sacks, loadouts, weather and more), Greenhouse decay/watering QOL, and reworked mob levels for slayers. Advanced reforge costs now scale with the reforge stone's rarity.",
+      "summary": "0.27.2: adds all the Minister perks (Precursor Drone mods, a year-long Mining Fiesta with Fiesta Flasks, bait sacks, loadouts, weather and more), Greenhouse decay/watering QOL and reworked mob levels for slayers. Advanced reforge costs now scale with the reforge stone's rarity.",
       "url": "https://hypixel.net/threads/hypixel-skyblock-0-27-2-the-minister-update-greenhouse-qol-and-more.6160240/",
       "autoItems": [
         "BOOSTER_COOKIE",
@@ -153,10 +168,12 @@
         "WORM_MEMBRANE"
       ],
       "items": [],
-      "excludeItems": [
-        "ENDER_STONE",
-        "GLACITE"
-      ]
+      "excludeItems": [],
+      "itemNotes": {
+        "ESSENCE_DIAMOND": "New sink: the Diamond Essence shop sells Drone Mod: Mining off Camera for 2,500 essence.",
+        "ESSENCE_FOREST": "New sink: the Forest Essence shop sells Drone Mod: Grungle for 2,500 essence.",
+        "HARDENED_WOOD": "This reforge stone gets a new 'Stiff Bonus'. Applying advanced reforges now costs a fixed amount based on the stone's rarity."
+      }
     },
     {
       "id": "t6159925",
@@ -167,7 +184,8 @@
       "url": "https://hypixel.net/threads/october-5-skyblock-patch-notes.6159925/",
       "autoItems": [],
       "items": [],
-      "excludeItems": []
+      "excludeItems": [],
+      "itemNotes": {}
     },
     {
       "id": "t6158108",
@@ -180,7 +198,8 @@
         "LOTUS"
       ],
       "items": [],
-      "excludeItems": []
+      "excludeItems": [],
+      "itemNotes": {}
     },
     {
       "id": "t6157749",
@@ -193,9 +212,8 @@
         "WEREWOLF_SKIN"
       ],
       "items": [],
-      "excludeItems": [
-        "WEREWOLF_SKIN"
-      ]
+      "excludeItems": [],
+      "itemNotes": {}
     },
     {
       "id": "t6153488",
@@ -206,7 +224,8 @@
       "url": "https://hypixel.net/threads/september-17-skyblock-patch-notes.6153488/",
       "autoItems": [],
       "items": [],
-      "excludeItems": []
+      "excludeItems": [],
+      "itemNotes": {}
     },
     {
       "id": "t6148062",
@@ -250,9 +269,8 @@
         "TARANTULA_WEB"
       ],
       "items": [],
-      "excludeItems": [
-        "LOTUS"
-      ]
+      "excludeItems": [],
+      "itemNotes": {}
     },
     {
       "id": "t6146157",
@@ -263,14 +281,15 @@
       "url": "https://hypixel.net/threads/august-27-skyblock-patch-notes.6146157/",
       "autoItems": [],
       "items": [],
-      "excludeItems": []
+      "excludeItems": [],
+      "itemNotes": {}
     },
     {
       "id": "t6142558",
       "date": "2026-08-24T13:42:10Z",
       "version": null,
       "title": "[August 24] SkyBlock Patch Notes",
-      "summary": "Big 0.27 follow-up: all Pots of Honeycomb are now on the Bazaar (single-charge, crafted in batches of 8), Forest's Favor added as a rare Helix Tree drop, a new Sea Brine / Brine Tonic, and a reworked Stealth enchantment. Shellfruit now drops only Cocoa Beans, plus many shard and contest-point changes.",
+      "summary": "Big 0.27 follow-up: all Pots of Honeycomb are now on the Bazaar, Forest's Favor added as a rare Helix Tree drop, a new Sea Brine / Brine Tonic, and a reworked Stealth enchantment. Shellfruit now drops only Cocoa Beans, plus many shard and contest-point changes.",
       "url": "https://hypixel.net/threads/august-24-skyblock-patch-notes.6142558/",
       "autoItems": [
         "BRINE_TONIC",
@@ -296,13 +315,24 @@
         "SUBLIME_SILK",
         "VINESAP"
       ],
-      "items": [
-        "BEHEMOTH_POT_OF_HONEYCOMB",
-        "FUN_SIZED_POT_OF_HONEYCOMB"
-      ],
-      "excludeItems": [
-        "LOTUS"
-      ]
+      "items": [],
+      "excludeItems": [],
+      "itemNotes": {
+        "BEHEMOTH_POT_OF_HONEYCOMB": "Added to the Bazaar. Pots now hold 1 charge and are crafted (or dropped) 8 at a time. The Beeheemoth now drops 8 instead of 1.",
+        "BRINE_TONIC": "New potion: +2.5 Charm Chance on Moonglade and Torrhus sea creatures.",
+        "DISTANT_ECHO": "Now upgrades the Stealth enchantment instead of Karma.",
+        "ENCHANTED_HELIX_LOG": "Family-Sized Pot of Honeycomb now needs 32 instead of 16.",
+        "ENCHANTMENT_KARMA_5": "Forest's Favor can now upgrade Karma V to VI.",
+        "ENCHANTMENT_STEALTH_*": "Reworked to levels I-V, capped at 60% (was 100%), but now works on all Timid mobs. Distant Echo now upgrades it.",
+        "FAMILY_SIZED_POT_OF_HONEYCOMB": "Added to the Bazaar. Pots now hold 1 charge and are crafted (or dropped) 8 at a time. The recipe now needs 32 Enchanted Helix Logs (was 16).",
+        "FORESTS_FAVOR": "New: 0.02% drop from Helix Tree Gifts. Upgrades Karma V to VI.",
+        "FUN_SIZED_POT_OF_HONEYCOMB": "Added to the Bazaar. Pots now hold 1 charge and are crafted (or dropped) 8 at a time.",
+        "INK_SACK:3": "Shellfruit's base-crop drops are now all Cocoa Beans, so more Cocoa Bean supply.",
+        "JUMBO_POT_OF_HONEYCOMB": "Added to the Bazaar. Pots now hold 1 charge and are crafted (or dropped) 8 at a time.",
+        "MARSHROOM": "New reforge stone (Vinesap VIII) that applies the 'Marshy' reforge.",
+        "SEA_BRINE": "New drop from the Brineling, used to craft the Brine Tonic.",
+        "SHELLFRUIT": "Its base-crop drops are now only Cocoa Beans."
+      }
     },
     {
       "id": "t6141710",
@@ -319,41 +349,43 @@
         "TIMESTALK",
         "TURTLELLINI"
       ],
-      "items": [
-        "ALL_IN_ALOE",
-        "BLASTBERRY",
-        "CHEESEBITE",
-        "CHLORONITE",
-        "CHOCOBERRY",
-        "CHOCONUT",
-        "CHORUS_FRUIT",
-        "CINDERSHADE",
-        "COALROOT",
-        "CREAMBLOOM",
-        "DEVOURER",
-        "DUSKBLOOM",
-        "DUSTGRAIN",
-        "FLESHTRAP",
-        "GLOOMGOURD",
-        "GODSEED",
-        "LONELILY",
-        "MAGIC_JELLYBEAN",
-        "NOCTILUME",
-        "PHANTOMLEAF",
-        "PLANTBOY_ADVANCE",
-        "PUFFERCLOUD",
-        "SCOURROOT",
-        "SHADEVINE",
-        "SOGGYBUD",
-        "STARTLEVINE",
-        "STOPLIGHT_PETAL",
-        "THORNSHADE",
-        "THUNDERLING",
-        "VEILSHROOM",
-        "WITHERBLOOM",
-        "ZOMBUD"
-      ],
-      "excludeItems": []
+      "items": [],
+      "excludeItems": [],
+      "itemNotes": {
+        "ALL_IN_ALOE": "Greenhouse multiplier 0.5 -> 0.7 (+40%): more loot per mutation.",
+        "ASHWREATH": "Greenhouse multiplier 0.3 -> 0.15 (-50%): less loot per mutation. Called out as a top earner and nerfed.",
+        "BLASTBERRY": "Greenhouse multiplier 3 -> 2 (-33%): less loot per mutation.",
+        "CHEESEBITE": "Greenhouse multiplier 3 -> 4 (+33%): more loot per mutation.",
+        "CHLORONITE": "Greenhouse multiplier 2 -> 2.7 (+35%): more loot per mutation.",
+        "CHOCOBERRY": "Greenhouse multiplier 2 -> 2.2 (+10%): more loot per mutation.",
+        "CHORUS_FRUIT": "Greenhouse multiplier 5 -> 3.5 (-30%): less loot per mutation.",
+        "CINDERSHADE": "Greenhouse multiplier 2 -> 1.7 (-15%): less loot per mutation.",
+        "COALROOT": "Greenhouse multiplier 2 -> 1.7 (-15%): less loot per mutation.",
+        "CREAMBLOOM": "Greenhouse multiplier 2 -> 2.8 (+40%): more loot per mutation.",
+        "DEVOURER": "Greenhouse multiplier 10 -> 19 (+90%): more loot per mutation.",
+        "DUSKBLOOM": "Greenhouse multiplier 2 -> 2.7 (+35%): more loot per mutation.",
+        "FLESHTRAP": "Greenhouse multiplier 4 -> 1.7 (-57%): less loot per mutation.",
+        "GLASSCORN": "Greenhouse multiplier 8 -> 16 (+100%): more loot per mutation. Now drops more Cactus and fewer Potatoes.",
+        "GLOOMGOURD": "Greenhouse multiplier 0.175 -> 0.2 (+14%): more loot per mutation.",
+        "LONELILY": "Greenhouse multiplier 2 -> 1.75 (-12%): less loot per mutation.",
+        "NOCTILUME": "Greenhouse multiplier 4 -> 5.3 (+32%): more loot per mutation.",
+        "PHANTOMLEAF": "Greenhouse multiplier 8 -> 5 (-38%): less loot per mutation.",
+        "PLANTBOY_ADVANCE": "Greenhouse multiplier 6 -> 23 (+283%): more loot per mutation.",
+        "PUFFERCLOUD": "Greenhouse multiplier 7 -> 6 (-14%): less loot per mutation.",
+        "SCOURROOT": "Greenhouse multiplier 0.175 -> 0.17 (-3%): less loot per mutation.",
+        "SHADEVINE": "Greenhouse multiplier 0.225 -> 0.26 (+16%): more loot per mutation.",
+        "SHELLFRUIT": "Greenhouse multiplier 1 -> 0.5 (-50%): less loot per mutation. Its base-crop drops are now split into Turtlellini and Shellfruit.",
+        "SNOOZLING": "Greenhouse multiplier 4 -> 21 (+425%): more loot per mutation. Called out as underused and buffed heavily.",
+        "SOGGYBUD": "Greenhouse multiplier 2 -> 1.2 (-40%): less loot per mutation.",
+        "STARTLEVINE": "Greenhouse multiplier 5 -> 7.5 (+50%): more loot per mutation.",
+        "STOPLIGHT_PETAL": "Greenhouse multiplier 8 -> 25 (+212%): more loot per mutation.",
+        "THUNDERLING": "Greenhouse multiplier 6 -> 11 (+83%): more loot per mutation.",
+        "TIMESTALK": "Greenhouse multiplier 10 -> 9 (-10%): less loot per mutation. The Timestalk Clone shard was also nerfed (Growth Speed 0.5-5 -> 0.1-1).",
+        "TURTLELLINI": "Greenhouse multiplier 1 -> 0.5 (-50%): less loot per mutation. Rarity lowered to Rare, and Shellfruit's base-crop drops are now split into Turtlellini and Shellfruit.",
+        "VEILSHROOM": "Greenhouse multiplier 0.175 -> 0.15 (-14%): less loot per mutation.",
+        "WITHERBLOOM": "Greenhouse multiplier 0.375 -> 0.23 (-39%): less loot per mutation.",
+        "ZOMBUD": "Greenhouse multiplier 7 -> 4.5 (-36%): less loot per mutation."
+      }
     },
     {
       "id": "t6142057",
@@ -368,30 +400,29 @@
         "LOTUS"
       ],
       "items": [],
-      "excludeItems": [
-        "GLACITE",
-        "LOTUS"
-      ]
+      "excludeItems": [],
+      "itemNotes": {}
     },
     {
       "id": "t6139315",
       "date": "2026-08-11T22:07:35Z",
       "version": null,
       "title": "[August 11] SkyBlock Patch Notes 2",
-      "summary": "Shard Fusion fixes: special fusions now come before ID fusions, and the Power Dragon shard can no longer be ID-fused (it stays an M7 / Chameleon-shard drop). F7/M7 lava bouncing was retuned for newer Minecraft versions.",
+      "summary": "Shard Fusion fixes: special fusions now come before ID fusions, and the Power Dragon shard can no longer be ID-fused. F7/M7 lava bouncing was retuned for newer Minecraft versions.",
       "url": "https://hypixel.net/threads/august-11-skyblock-patch-notes-2.6139315/",
       "autoItems": [],
-      "items": [
-        "SHARD_POWER_DRAGON"
-      ],
-      "excludeItems": []
+      "items": [],
+      "excludeItems": [],
+      "itemNotes": {
+        "SHARD_POWER_DRAGON": "Can no longer be made through ID fusion. Still obtainable from M7, or from Hellwisp with a Chameleon shard, so supply drops."
+      }
     },
     {
       "id": "t6139155",
       "date": "2026-08-11T17:05:50Z",
       "version": null,
       "title": "[August 11] SkyBlock Patch Notes",
-      "summary": "Large 0.27 adjustment patch: Signal Enhancers added to the Bazaar, the Karma enchantment drop chance raised tenfold, and Ruby Veilshroom yields increased (with fewer needed for the Accretion Artifact). Plus many Critter Safari, bestiary and booster changes.",
+      "summary": "Large 0.27 adjustment patch: Signal Enhancers added to the Bazaar, the Karma enchantment drop chance raised tenfold, and Ruby Veilshroom yields increased. Plus many Critter Safari, bestiary and booster changes.",
       "url": "https://hypixel.net/threads/august-11-skyblock-patch-notes.6139155/",
       "autoItems": [
         "ENCHANTMENT_KARMA_1",
@@ -410,12 +441,13 @@
         "SWEEP_BOOSTER_UNCOMMON",
         "VEILSHROOM"
       ],
-      "items": [
-        "SIGNAL_ENHANCER"
-      ],
-      "excludeItems": [
-        "ENDER_STONE"
-      ]
+      "items": [],
+      "excludeItems": [],
+      "itemNotes": {
+        "ENCHANTMENT_KARMA_*": "Drop chance raised from 0.02% to 0.2% (10x), so much more supply.",
+        "RUBY_VEILSHROOM": "Base yield 1 -> 4-8, more from Torrhus sea creatures, and the Accretion Artifact now needs 2 instead of 16. More supply, less demand.",
+        "SIGNAL_ENHANCER": "Added to the Bazaar."
+      }
     },
     {
       "id": "t6135988",
@@ -427,10 +459,12 @@
       "autoItems": [
         "SPOTLITE"
       ],
-      "items": [
-        "VOLCANIC_ROCK"
-      ],
-      "excludeItems": []
+      "items": [],
+      "excludeItems": [],
+      "itemNotes": {
+        "SPOTLITE": "Fixed Discrite not evolving into Spotlite after 150 hours.",
+        "VOLCANIC_ROCK": "Refrigerate I costs 1 Volcanic Rock + 10 North Shards again, and Jerry's Workshop now gives up to 5 Volcanic Rocks per wave."
+      }
     },
     {
       "id": "t6136123",
@@ -441,14 +475,15 @@
       "url": "https://hypixel.net/threads/august-5-skyblock-patch-notes-2.6136123/",
       "autoItems": [],
       "items": [],
-      "excludeItems": []
+      "excludeItems": [],
+      "itemNotes": {}
     },
     {
       "id": "t6136018",
       "date": "2026-08-05T20:01:08Z",
       "version": null,
       "title": "[August 5] SkyBlock Patch Notes",
-      "summary": "",
+      "summary": "Hotfixes for the 0.27 release: Torrhus Canyon access checks, Helix Logs counting for Absorb, Lushlilac Bonbon chapter tasks and pest pathfinding.",
       "url": "https://hypixel.net/threads/august-5-skyblock-patch-notes.6136018/",
       "autoItems": [
         "ENCHANTMENT_ABSORB_1",
@@ -457,14 +492,14 @@
       ],
       "items": [],
       "excludeItems": [],
-      "needsReview": true
+      "itemNotes": {}
     },
     {
       "id": "t6135204",
       "date": "2026-08-04T15:14:01Z",
       "version": "0.27",
       "title": "Hypixel SkyBlock 0.27 - Torrhus Canyon & Critter Safari",
-      "summary": "",
+      "summary": "0.27: adds Torrhus Canyon, the second Foraging island (Heart of the Forest tier 8, new Helix Log, Ruby Veilshroom and Honeycomb collections), and the Critter Safari with about 150 new attributes. The Hunting skill cap rises to 50, and many bestiaries were reduced.",
       "url": "https://hypixel.net/threads/hypixel-skyblock-0-27-torrhus-canyon-critter-safari.6135204/",
       "autoItems": [
         "BOOKWORM_BOOK",
@@ -488,26 +523,36 @@
       ],
       "items": [],
       "excludeItems": [],
-      "needsReview": true
+      "itemNotes": {
+        "ENCHANTED_FIG_LOG": "Rarity lowered from Rare to Uncommon.",
+        "ENCHANTED_MANGROVE_LOG": "Rarity lowered from Rare to Uncommon.",
+        "FIG_LOG": "NPC sell price raised from 7 to 8.",
+        "FLEXBONE": "Removed from fishing treasure tables. Now replaces a Treasure Catch 25% of the time in the Tomb Floodway.",
+        "HELIX_LOG": "New item and collection from Torrhus Canyon's Helix Trees (NPC sell price 20).",
+        "HONEYCOMB": "New collection, gathered from Honeyhives in Torrhus Canyon.",
+        "MANGROVE_LOG": "NPC sell price raised from 8 to 14.",
+        "RUBY_VEILSHROOM": "New collection in Torrhus Canyon.",
+        "STRETCHING_STICKS": "Added to the Bazaar."
+      }
     },
     {
       "id": "t6128344",
       "date": "2026-07-23T00:53:29Z",
       "version": null,
       "title": "[July 23] Healing Revamp Hotfixes",
-      "summary": "",
+      "summary": "Healing Revamp hotfixes: Berserk heals on hit again, slayer and Dungeon damage values were corrected, and Tarantula Slayer damage was lowered.",
       "url": "https://hypixel.net/threads/july-23-healing-revamp-hotfixes.6128344/",
       "autoItems": [],
       "items": [],
       "excludeItems": [],
-      "needsReview": true
+      "itemNotes": {}
     },
     {
       "id": "t6128058",
       "date": "2026-07-22T15:12:35Z",
       "version": "0.26.1",
       "title": "Hypixel SkyBlock 0.26.1 - New Player Improvements, Harvest Feast Changes, Healing Revamp, and more!",
-      "summary": "",
+      "summary": "0.26.1: new-player improvements (Beginner Sacks, a unified farming armor path, buffed starter tools), new Harvest Feast items, and the Healing Revamp, which turns Vitality into a resource that healing abilities spend. Mob damage was lowered across the game to compensate.",
       "url": "https://hypixel.net/threads/hypixel-skyblock-0-26-1-new-player-improvements-harvest-feast-changes-healing-revamp-and-more.6128058/",
       "autoItems": [
         "BLOOMING_THORNS",
@@ -551,28 +596,36 @@
       ],
       "items": [],
       "excludeItems": [],
-      "needsReview": true
+      "itemNotes": {
+        "AGGOURDIAN": "Overpriced Drinks now use 8 Aggourdians + 8 Designer Coffee Beans instead of 14 Aggourdians, so less demand.",
+        "CARROT_ZEST": "Feast rare crops now sell to NPCs for 50,000 coins, which sets a price floor.",
+        "CORNUCOPIA": "Feast rare crops now sell to NPCs for 50,000 coins. Also used in the new Feast Burger.",
+        "EXP_BOTTLE": "The NPC buy limit on Experience Bottles was removed.",
+        "FLORAL_GELATIN": "Royal Jelly now needs half as much. Also used to craft and upgrade the new Orchid Mantis pet.",
+        "ROYAL_JELLY": "Recipe now needs half as much Floral Gelatin, so it's cheaper to make.",
+        "THORN_FRAGMENT": "Used to craft the new Blooming Thorns reforge stone."
+      }
     },
     {
       "id": "t6124368",
       "date": "2026-07-13T23:22:30Z",
       "version": null,
       "title": "[July 13] SkyBlock Patch Notes",
-      "summary": "",
+      "summary": "Added 4 more Stat Tuning slots, the missing 15th Chocolate Egg on the Lotus Atoll, and a few small fixes.",
       "url": "https://hypixel.net/threads/july-13-skyblock-patch-notes.6124368/",
       "autoItems": [
         "LOTUS"
       ],
       "items": [],
       "excludeItems": [],
-      "needsReview": true
+      "itemNotes": {}
     },
     {
       "id": "t6121388",
       "date": "2026-07-08T21:42:54Z",
       "version": "0.26",
       "title": "Hypixel SkyBlock 0.26 - SkyBlock Resource Pack, Loadouts, Security Quest, and more!",
-      "summary": "",
+      "summary": "0.26: launches the official SkyBlock Resource Pack, Loadouts (gear and HOTM/HOTF presets), an Equipment Wardrobe and a Security Quest. Drops support for Minecraft 1.21.9 and 1.21.10.",
       "url": "https://hypixel.net/threads/hypixel-skyblock-0-26-skyblock-resource-pack-loadouts-security-quest-and-more.6121388/",
       "autoItems": [
         "BOOSTER_COOKIE",
@@ -581,38 +634,38 @@
       ],
       "items": [],
       "excludeItems": [],
-      "needsReview": true
+      "itemNotes": {}
     },
     {
       "id": "t6119223",
       "date": "2026-07-04T22:13:03Z",
       "version": null,
       "title": "[July 4] SkyBlock Patch Notes",
-      "summary": "",
+      "summary": "Fixed some Legendary sea creatures ignoring the Tracking stat.",
       "url": "https://hypixel.net/threads/july-4-skyblock-patch-notes.6119223/",
       "autoItems": [],
       "items": [],
       "excludeItems": [],
-      "needsReview": true
+      "itemNotes": {}
     },
     {
       "id": "t6118613",
       "date": "2026-07-03T05:00:00Z",
       "version": null,
       "title": "[July 3] SkyBlock Patch Notes",
-      "summary": "",
+      "summary": "Extended the Year 500 Century Celebration by a day after a rough start; the final raffle draw moved to July 9.",
       "url": "https://hypixel.net/threads/july-3-skyblock-patch-notes.6118613/",
       "autoItems": [],
       "items": [],
       "excludeItems": [],
-      "needsReview": true
+      "itemNotes": {}
     },
     {
       "id": "t6117800",
       "date": "2026-07-02T00:26:33Z",
       "version": null,
       "title": "SkyBlock - Year 500 Century Celebration",
-      "summary": "",
+      "summary": "Year 500 Century Celebration: a week of big stat buffs for everyone, raffles with tasks and rewards, and new Century Cakes.",
       "url": "https://hypixel.net/threads/skyblock-year-500-century-celebration.6117800/",
       "autoItems": [
         "ECCENTRIC_PAINTING",
@@ -624,14 +677,14 @@
       ],
       "items": [],
       "excludeItems": [],
-      "needsReview": true
+      "itemNotes": {}
     },
     {
       "id": "t6114518",
       "date": "2026-06-24T20:50:15Z",
       "version": null,
       "title": "[June 24] SkyBlock Resource Pack, Loadouts, and Healing Revamp Changes",
-      "summary": "",
+      "summary": "Alpha Network test changelog for the Resource Pack, Loadouts and Healing Revamp. These changes went live later with 0.26 and 0.26.1.",
       "url": "https://hypixel.net/threads/june-24-skyblock-resource-pack-loadouts-and-healing-revamp-changes.6114518/",
       "autoItems": [
         "ABSOLUTE_ENDER_PEARL",
@@ -862,52 +915,54 @@
       ],
       "items": [],
       "excludeItems": [],
-      "needsReview": true
+      "itemNotes": {}
     },
     {
       "id": "t6112344",
       "date": "2026-06-19T21:47:27Z",
       "version": null,
       "title": "[June 19] SkyBlock Patch Notes",
-      "summary": "",
+      "summary": "Removed Grand Feast from Jerry's Perkpocalypse, fixed pearl teleports at corners, and made many bugged collectible items Co-op Soulbound so they can't be traded.",
       "url": "https://hypixel.net/threads/june-19-skyblock-patch-notes.6112344/",
       "autoItems": [],
       "items": [],
       "excludeItems": [],
-      "needsReview": true
+      "itemNotes": {}
     },
     {
       "id": "t6108672",
       "date": "2026-06-11T15:45:08Z",
       "version": null,
       "title": "SkyBlock's 7th Anniversary + SkyBlock Resource Pack News!",
-      "summary": "",
+      "summary": "SkyBlock's 7th anniversary: a week of boosted Magic Find and Skill XP, a free Cake Hat, and an announcement of the official SkyBlock Resource Pack.",
       "url": "https://hypixel.net/threads/skyblocks-7th-anniversary-skyblock-resource-pack-news.6108672/",
       "autoItems": [],
       "items": [],
       "excludeItems": [],
-      "needsReview": true
+      "itemNotes": {}
     },
     {
       "id": "t6104669",
       "date": "2026-06-01T20:10:18Z",
       "version": null,
       "title": "[June 1] SkyBlock Patch Notes",
-      "summary": "",
+      "summary": "Fixed Iceberg Dyes not dropping, fixed Shark Bait, stopped cactus growing in invalid spots, and updated island world versions to 1.21.9.",
       "url": "https://hypixel.net/threads/june-1-skyblock-patch-notes.6104669/",
       "autoItems": [
         "SHARK_BAIT"
       ],
       "items": [],
       "excludeItems": [],
-      "needsReview": true
+      "itemNotes": {
+        "SHARK_BAIT": "Bug fix: it was giving a much lower Shark chance than intended. It now works properly, so it's more useful."
+      }
     },
     {
       "id": "t6102310",
       "date": "2026-05-26T15:13:00Z",
       "version": "0.25",
       "title": "Hypixel SkyBlock 0.25 - Lotus Atoll",
-      "summary": "",
+      "summary": "0.25: adds the Lotus Atoll, a fishing island after the Backwater Bayou, with Trophy Frogs, Exploding Lily Pads and new sea creatures. Also brings Fishing Hotspots in the Park, Bayou chapters and rebalanced sea creature catch chances.",
       "url": "https://hypixel.net/threads/hypixel-skyblock-0-25-lotus-atoll.6102310/",
       "autoItems": [
         "BAYOU_WATER_ORB",
@@ -925,14 +980,14 @@
       ],
       "items": [],
       "excludeItems": [],
-      "needsReview": true
+      "itemNotes": {}
     },
     {
       "id": "t6096831",
       "date": "2026-05-14T17:22:04Z",
       "version": null,
       "title": "[May 14] Harvest Feast Changes",
-      "summary": "",
+      "summary": "Harvest/Grand Feast changes: pests can drop the in-season Feast rare crop, all pest drop rates were doubled, and Overbloom (not Farming Fortune) now scales them. Zombuddy health was cut.",
       "url": "https://hypixel.net/threads/may-14-harvest-feast-changes.6096831/",
       "autoItems": [
         "BEADY_EYES",
@@ -958,28 +1013,50 @@
       ],
       "items": [],
       "excludeItems": [],
-      "needsReview": true
+      "itemNotes": {
+        "BEADY_EYES": "Pest drop rate doubled; Overbloom now scales it instead of Farming Fortune.",
+        "CARROT_ZEST": "Pests now have a 15% chance to drop their crop's Feast rare crop while it's in season, so more supply.",
+        "CHEESE_FUEL": "Pest drop rate doubled; Overbloom now scales it instead of Farming Fortune.",
+        "CLIPPED_WINGS": "Pest drop rate doubled; Overbloom now scales it instead of Farming Fortune.",
+        "COMPOST": "Pest drop rate doubled; Overbloom now scales it instead of Farming Fortune.",
+        "CORNUCOPIA": "Pests now have a 15% chance to drop their crop's Feast rare crop while it's in season, so more supply.",
+        "DUNG": "Pest drop rate doubled; Overbloom now scales it instead of Farming Fortune.",
+        "ENCHANTED_GOLDEN_CARROT": "Pest drop rate doubled; Overbloom now scales it instead of Farming Fortune.",
+        "ENCHANTED_HAY_BALE": "Pest drop rate doubled; Overbloom now scales it instead of Farming Fortune.",
+        "ENCHANTMENT_PESTERMINATOR_1": "Pest drop rate doubled; Overbloom now scales it instead of Farming Fortune.",
+        "FIRE_IN_A_BOTTLE": "Pest drop rate doubled; Overbloom now scales it instead of Farming Fortune.",
+        "HONEY_JAR": "Pest drop rate doubled; Overbloom now scales it instead of Farming Fortune.",
+        "JELLY": "Pest drop rate doubled; Overbloom now scales it instead of Farming Fortune.",
+        "LOCUST_LARVA": "Pest drop rate doubled; Overbloom now scales it instead of Farming Fortune.",
+        "MANTID_CLAW": "Pest drop rate doubled; Overbloom now scales it instead of Farming Fortune.",
+        "PLANT_MATTER": "Pest drop rate doubled; Overbloom now scales it instead of Farming Fortune.",
+        "SQUEAKY_TOY": "Pest drop rate doubled; Overbloom now scales it instead of Farming Fortune.",
+        "VERMIN_VAPORIZER_GARDEN_CHIP": "Pest drop rate doubled; Overbloom now scales it instead of Farming Fortune.",
+        "WRIGGLING_LARVA": "Pest drop rate doubled; Overbloom now scales it instead of Farming Fortune."
+      }
     },
     {
       "id": "t6096789",
       "date": "2026-05-11T21:08:36Z",
       "version": null,
       "title": "[May 11] SkyBlock Patch Notes",
-      "summary": "",
+      "summary": "Bug fixes: Sugar Cane now gets its fair share of Seasoning and rare-crop drops, ender pearls can't phase through blocks, and Chloronite uses the correct fortune calculation.",
       "url": "https://hypixel.net/threads/may-11-skyblock-patch-notes.6096789/",
       "autoItems": [
         "CHLORONITE"
       ],
       "items": [],
       "excludeItems": [],
-      "needsReview": true
+      "itemNotes": {
+        "CHLORONITE": "Bug fix: it wasn't using the proper fortune calculation, which changes how much farmers get."
+      }
     },
     {
       "id": "t6094244",
       "date": "2026-05-06T17:33:38Z",
       "version": "0.24.5",
       "title": "Hypixel SkyBlock 0.24.5 - Assorted QoL Changes",
-      "summary": "",
+      "summary": "0.24.5: assorted QOL across combat, farming, fishing, hunting and mining, including slayer loot table cleanup, a stronger Magma Lord Gauntlet, and shard drop changes.",
       "url": "https://hypixel.net/threads/hypixel-skyblock-0-24-5-assorted-qol-changes.6094244/",
       "autoItems": [
         "CLAW_FOSSIL",
@@ -999,14 +1076,19 @@
       ],
       "items": [],
       "excludeItems": [],
-      "needsReview": true
+      "itemNotes": {
+        "CLAW_FOSSIL": "Removed from the Fossil Excavator, so less supply.",
+        "ENCHANTED_BLAZE_POWDER": "Moved into the main slayer loot table (weight reduced to 1,500).",
+        "FESTERING_MAGGOT": "Moved from the slayer 'extra' loot table into the main table, so it drops more reliably.",
+        "SHARD_BURNINGSOUL": "Renamed Demonlord Shard and now drops from the Inferno Demonlord."
+      }
     },
     {
       "id": "t6094300",
       "date": "2026-05-05T15:26:35Z",
       "version": null,
       "title": "[May 5] SkyBlock Patch Notes",
-      "summary": "",
+      "summary": "Harvest Feast follow-up: more Overbloom from the Feast enchantment, Lucky Clovers and Freshly Baked accessories, and Book of Stats now works on farming tools.",
       "url": "https://hypixel.net/threads/may-5-skyblock-patch-notes.6094300/",
       "autoItems": [
         "BOOK_OF_STATS",
@@ -1018,14 +1100,17 @@
       ],
       "items": [],
       "excludeItems": [],
-      "needsReview": true
+      "itemNotes": {
+        "BOOK_OF_STATS": "Can now be applied to farming tools to track crops harvested.",
+        "ENCHANTMENT_FEAST_*": "Now grants +2 Overbloom per level (was +0.5), four times as much."
+      }
     },
     {
       "id": "t6091661",
       "date": "2026-04-28T15:55:27Z",
       "version": "0.24.4",
       "title": "Hypixel SkyBlock 0.24.4 - Harvest Feast Event, Fossil Essence Shop, and more!",
-      "summary": "",
+      "summary": "0.24.4: adds the Harvest Feast, a yearly farming event with Seasonings, a new Overbloom stat and Feast rare crops, plus Grand Feasts under Mayor Finnegan. Fossil Dust becomes Fossil Essence with its own shop, and pest farming fortune was nerfed.",
       "url": "https://hypixel.net/threads/hypixel-skyblock-0-24-4-harvest-feast-event-fossil-essence-shop-and-more.6091661/",
       "autoItems": [
         "BLESSED_FRUIT",
@@ -1075,14 +1160,24 @@
       ],
       "items": [],
       "excludeItems": [],
-      "needsReview": true
+      "itemNotes": {
+        "BURROWING_SPORES": "Now a rare crop with its drop rate cut to 1/350,000 'to maintain its value', so less supply.",
+        "CLAW_FOSSIL": "All Fossils were added to the Bazaar.",
+        "CLUBBED_FOSSIL": "All Fossils were added to the Bazaar.",
+        "ESSENCE_FOSSIL": "Fossil Dust became Fossil Essence with its own shop. Fossil Blocks now give 4-8 instead of 1, and the new Fossil Muncher pays 100 per fossil.",
+        "FOOTPRINT_FOSSIL": "All Fossils were added to the Bazaar.",
+        "SPINE_FOSSIL": "All Fossils were added to the Bazaar.",
+        "TUSK_FOSSIL": "All Fossils were added to the Bazaar.",
+        "UGLY_FOSSIL": "All Fossils were added to the Bazaar.",
+        "WEBBED_FOSSIL": "All Fossils were added to the Bazaar."
+      }
     },
     {
       "id": "t6087215",
       "date": "2026-04-15T20:42:23Z",
       "version": null,
       "title": "[April 15] SkyBlock Patch Notes",
-      "summary": "",
+      "summary": "Bug fixes: duplicate recipe prompts, Melon Armor's set bonus, Hub Rat display, Pickobulus collisions and several NPC shop issues.",
       "url": "https://hypixel.net/threads/april-15-skyblock-patch-notes.6087215/",
       "autoItems": [
         "CROPIE",
@@ -1093,7 +1188,7 @@
       ],
       "items": [],
       "excludeItems": [],
-      "needsReview": true
+      "itemNotes": {}
     },
     {
       "id": "t6084337",
