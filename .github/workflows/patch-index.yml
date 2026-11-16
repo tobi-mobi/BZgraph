@@ -50,6 +50,32 @@ jobs:
       - name: Tagger tests
         run: python -m unittest discover -s patch-index/scripts -v
 
+  # The mod keeps whichever copy of the index (download cache or the one bundled in the jar) has the newer
+  # "updated" stamp. If index.json changes on main without a new stamp (e.g. a summary edited on GitHub),
+  # players would keep a stale cached copy, so bump it here. Pushes made with GITHUB_TOKEN don't re-trigger
+  # workflows, so this can't loop.
+  bump-timestamp:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Bump "updated" if the patches changed without it
+        run: |
+          git show "${{ github.event.before }}:patch-index/index.json" > "$RUNNER_TEMP/prev.json" 2>/dev/null \
+            || rm -f "$RUNNER_TEMP/prev.json"
+          python patch-index/scripts/update_index.py --mode touch --base "$RUNNER_TEMP/prev.json"
+          if git diff --quiet -- patch-index/index.json; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Patch index: bump updated timestamp" -- patch-index/index.json
+          git push origin "HEAD:${{ github.ref_name }}"
+
   update:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest

@@ -57,5 +57,16 @@ class TaggerTest(unittest.TestCase):
         self.assertNotIn("ESSENCE_ICE", self.found)
 
 
+class TouchTest(unittest.TestCase):
+    def test_bump_only_when_content_changed_without_timestamp(self):
+        old = {"updated": "2026-11-16T15:16:39Z", "patches": [{"id": "t1", "summary": ""}]}
+        edited = {"updated": "2026-11-16T15:16:39Z", "patches": [{"id": "t1", "summary": "Now written."}]}
+        self.assertTrue(ui.needs_touch(old, edited))
+        self.assertFalse(ui.needs_touch(old, dict(old)), "nothing changed")
+        bumped = dict(edited, updated="2026-11-17T00:00:00Z")
+        self.assertFalse(ui.needs_touch(old, bumped), "already bumped")
+        self.assertFalse(ui.needs_touch(None, edited), "new file")
+
+
 if __name__ == "__main__":
     unittest.main()

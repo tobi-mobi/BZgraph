@@ -335,16 +335,37 @@ def make_entry(thread: dict, names: dict[str, list[str]], delay: float) -> dict 
     }
 
 
+def needs_touch(base: dict | None, index: dict) -> bool:
+    """True if the patches changed since `base` but 'updated' was left as it was."""
+    if base is None:
+        return False  # new file: whoever created it set 'updated'
+    return base.get("patches") != index.get("patches") and base.get("updated") == index.get("updated")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--index", type=Path, default=Path(__file__).resolve().parent.parent / "index.json")
-    ap.add_argument("--mode", choices=["rss", "backfill", "validate"], default="rss")
+    ap.add_argument("--mode", choices=["rss", "backfill", "validate", "touch"], default="rss",
+                    help="touch: set 'updated' to now (with --base: only if patches changed but 'updated' didn't)")
+    ap.add_argument("--base", type=Path, help="touch: previous version of index.json to compare against")
     ap.add_argument("--max-pages", type=int, default=60, help="backfill: forum pages to walk")
     ap.add_argument("--max-new", type=int, default=400, help="stop after this many new entries")
     ap.add_argument("--delay", type=float, default=1.5, help="seconds between HTTP requests")
     args = ap.parse_args()
 
     index = load_index(args.index)
+    if args.mode == "touch":
+        # The mod keeps whichever copy (download cache vs. bundled in the jar) has the newer 'updated', so every
+        # content change must bump it, or players keep seeing a stale cached copy.
+        if args.base is not None:
+            base = load_index(args.base) if args.base.exists() else None
+            if not needs_touch(base, index):
+                print("no bump needed")
+                return 0
+        index["updated"] = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        save_index(args.index, index)
+        print("updated ->", index["updated"])
+        return 0
     if args.mode == "validate":
         errors = validate(index)
         for e in errors:
