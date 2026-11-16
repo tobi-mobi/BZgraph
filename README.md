@@ -11,7 +11,7 @@ Client-side Fabric mod for **Minecraft 26.2** that shows an in-game price-histor
   With no GUI open, **G** graphs the item in your main hand.
 - **Recipe viewers**: search for an item, hover it and press **G** to graph it.
   - **Reliable Recipe Viewer (RRV)**: works in RRV's item list, bookmarks and craftables (BZgraph registers its key
-    through RRV's overlay keybind API).
+    through RRV's overlay keybind API) and on RRV's recipe screen (ingredients, results and the workstation icon).
   - **Roughly Enough Items (REI)**: works in REI's item list, favorites and recipe screens.
   Both are optional; BZgraph talks to them through reflection and simply skips this when they aren't installed. G is ignored while a text box (REI search, anvil, creative search) is
   focused.

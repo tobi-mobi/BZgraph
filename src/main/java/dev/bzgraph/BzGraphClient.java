@@ -113,10 +113,10 @@ public final class BzGraphClient implements ClientModInitializer {
 
 		// Keybind inside container screens (inventory, chests, bazaar): game keybinds aren't ticked while a
 		// screen is open, so intercept the key press on the screen itself.
-		// Also on REI's own screens (recipe views), where its item panels can be hovered.
+		// Also on recipe-viewer screens (RRV's recipe view, REI's screens), where items can be hovered.
 		ScreenEvents.AFTER_INIT.register((mc, screen, w, h) -> {
 			boolean container = screen instanceof AbstractContainerScreen<?>;
-			if (container || (ReiCompat.isLoaded() && !(screen instanceof BzScreen))) {
+			if (container || RrvCompat.isRecipeScreen(screen) || (ReiCompat.isLoaded() && !(screen instanceof BzScreen))) {
 				ScreenKeyboardEvents.allowKeyPress(screen).register((s, event) -> {
 					if (!openKey.matches(event)) return true;
 					return !tryOpenHovered(s);
@@ -229,6 +229,7 @@ public final class BzGraphClient implements ClientModInitializer {
 		if (screen.getFocused() instanceof EditBox box && box.canConsumeInput()) return false;
 		if (ReiCompat.searchFocused()) return false;
 		ItemStack stack = ReiCompat.hoveredStack(screen); // REI item list / favorites / recipe screens
+		if (stack == null) stack = RrvCompat.hoveredRecipeStack(screen); // RRV recipe screen
 		if (stack == null && screen instanceof AbstractContainerScreen<?>) {
 			Slot slot = ((AbstractContainerScreenAccessor) screen).bzgraph$getHoveredSlot();
 			if (slot != null && slot.hasItem()) stack = slot.getItem();
