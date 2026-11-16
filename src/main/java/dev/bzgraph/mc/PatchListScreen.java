@@ -16,10 +16,11 @@ import java.time.ZoneId;
 import java.util.List;
 
 /** Searchable list of patch notes, optionally filtered to one bazaar item or a preset selection. */
-public final class PatchListScreen extends Screen {
+public final class PatchListScreen extends Screen implements BzScreen {
 	private static final int ROW_H = 24;
 
 	private final Screen parent;
+	private final GraphNav nav;
 	/** Fixed selection (e.g. a cluster of graph markers); null = whole index. */
 	private final List<PatchNote> preset;
 	private final String productId;
@@ -34,9 +35,11 @@ public final class PatchListScreen extends Screen {
 	private int listX0, listX1, listY0, listY1;
 	private Object shownIndex;
 
-	public PatchListScreen(Screen parent, List<PatchNote> preset, String productId, List<PricePoint> history, TimeRange range) {
+	public PatchListScreen(Screen parent, GraphNav nav, List<PatchNote> preset, String productId, List<PricePoint> history,
+						   TimeRange range) {
 		super(Component.literal("Patch notes"));
 		this.parent = parent;
+		this.nav = nav;
 		this.preset = preset;
 		this.productId = productId;
 		this.history = history;
@@ -70,7 +73,8 @@ public final class PatchListScreen extends Screen {
 		int by = height - 28;
 		addRenderableWidget(Button.builder(Component.literal("Refresh"), b -> BzGraphClient.get().refreshPatches(true))
 				.bounds(width / 2 - 154, by, 150, 20).build());
-		addRenderableWidget(Button.builder(Component.literal("Done"), b -> onClose())
+		addRenderableWidget(Button.builder(Component.literal(parent == null ? "Done" : "Back"),
+						b -> minecraft.gui.setScreen(parent))
 				.bounds(width / 2 + 4, by, 150, 20).build());
 		setInitialFocus(search);
 		rebuild();
@@ -98,9 +102,10 @@ public final class PatchListScreen extends Screen {
 		if (preset == null && shownIndex != BzGraphClient.get().patches().current()) rebuild();
 	}
 
+	/** Esc closes the whole BZgraph session; the Back button returns to the previous screen. */
 	@Override
 	public void onClose() {
-		minecraft.gui.setScreen(parent);
+		minecraft.gui.setScreen(nav.root());
 	}
 
 	@Override
@@ -129,7 +134,7 @@ public final class PatchListScreen extends Screen {
 		if (super.mouseClicked(event, doubleClick)) return true;
 		int i = rowAt(event.x(), event.y());
 		if (event.button() == 0 && i >= 0) {
-			minecraft.gui.setScreen(new PatchDetailScreen(this, rows.get(i), productId, history, range));
+			minecraft.gui.setScreen(new PatchDetailScreen(this, nav, rows.get(i), productId, history, range));
 			return true;
 		}
 		return false;

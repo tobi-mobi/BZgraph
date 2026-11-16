@@ -10,7 +10,10 @@ import dev.bzgraph.core.RequestQueue;
 import dev.bzgraph.mc.BzConfig;
 import dev.bzgraph.mc.GraphScreen;
 import dev.bzgraph.mc.ItemReader;
+import dev.bzgraph.mc.BzScreen;
+import dev.bzgraph.mc.GraphNav;
 import dev.bzgraph.mc.PatchListScreen;
+import dev.bzgraph.mc.ReiCompat;
 import dev.bzgraph.mixin.AbstractContainerScreenAccessor;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
@@ -24,6 +27,7 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.multiplayer.ServerData;
@@ -101,8 +105,10 @@ public final class BzGraphClient implements ClientModInitializer {
 
 		// Keybind inside container screens (inventory, chests, bazaar): game keybinds aren't ticked while a
 		// screen is open, so intercept the key press on the screen itself.
+		// Also on REI's own screens (recipe views), where its item panels can be hovered.
 		ScreenEvents.AFTER_INIT.register((mc, screen, w, h) -> {
-			if (screen instanceof AbstractContainerScreen<?>) {
+			boolean container = screen instanceof AbstractContainerScreen<?>;
+			if (container || (ReiCompat.isLoaded() && !(screen instanceof BzScreen))) {
 				ScreenKeyboardEvents.allowKeyPress(screen).register((s, event) -> {
 					if (!openKey.matches(event)) return true;
 					return !tryOpenHovered(s);
@@ -119,7 +125,7 @@ public final class BzGraphClient implements ClientModInitializer {
 								return 0;
 							}
 							ensurePatches();
-							pendingScreen = new PatchListScreen(null, null, null, null, null);
+							pendingScreen = new PatchListScreen(null, new GraphNav(null), null, null, null, null);
 							return 1;
 						}))
 						.then(ClientCommands.argument("item", StringArgumentType.greedyString())
@@ -211,9 +217,16 @@ public final class BzGraphClient implements ClientModInitializer {
 	/** @return true if the key press was handled (and should be consumed). */
 	private boolean tryOpenHovered(Screen screen) {
 		if (!isActive()) return false;
-		Slot slot = ((AbstractContainerScreenAccessor) screen).bzgraph$getHoveredSlot();
-		if (slot == null || !slot.hasItem()) return false;
-		openForStack(slot.getItem(), screen);
+		// Typing in a text box (anvil, creative search, REI search) must still produce the letter.
+		if (screen.getFocused() instanceof EditBox box && box.canConsumeInput()) return false;
+		if (ReiCompat.searchFocused()) return false;
+		ItemStack stack = ReiCompat.hoveredStack(screen); // REI item list / favorites / recipe screens
+		if (stack == null && screen instanceof AbstractContainerScreen<?>) {
+			Slot slot = ((AbstractContainerScreenAccessor) screen).bzgraph$getHoveredSlot();
+			if (slot != null && slot.hasItem()) stack = slot.getItem();
+		}
+		if (stack == null) return false;
+		openForStack(stack, screen);
 		return true;
 	}
 

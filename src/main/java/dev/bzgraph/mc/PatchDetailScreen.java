@@ -23,11 +23,12 @@ import java.util.Locale;
 import java.util.Map;
 
 /** Title, date, own-words summary, mentioned items and a link to the full forum post. */
-public final class PatchDetailScreen extends Screen {
+public final class PatchDetailScreen extends Screen implements BzScreen {
 	static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.ROOT);
 	private static final int MAX_ITEMS_SHOWN = 24;
 
 	private final Screen parent;
+	private final GraphNav nav;
 	private final PatchNote patch;
 	/** Item whose graph we came from (for the before/after numbers), or null. */
 	private final String productId;
@@ -39,9 +40,11 @@ public final class PatchDetailScreen extends Screen {
 	private record ItemLink(String id, int x, int y, int w) {
 	}
 
-	public PatchDetailScreen(Screen parent, PatchNote patch, String productId, List<PricePoint> history, TimeRange range) {
+	public PatchDetailScreen(Screen parent, GraphNav nav, PatchNote patch, String productId, List<PricePoint> history,
+							 TimeRange range) {
 		super(Component.literal(patch.title()));
 		this.parent = parent;
+		this.nav = nav;
 		this.patch = patch;
 		this.productId = productId;
 		this.history = history;
@@ -54,12 +57,14 @@ public final class PatchDetailScreen extends Screen {
 		Button open = addRenderableWidget(Button.builder(Component.literal("Open full post"),
 				b -> ConfirmLinkScreen.confirmLinkNow(this, patch.url())).bounds(width / 2 - 154, y, 150, 20).build());
 		open.active = patch.url() != null;
-		addRenderableWidget(Button.builder(Component.literal("Back"), b -> onClose()).bounds(width / 2 + 4, y, 150, 20).build());
+		addRenderableWidget(Button.builder(Component.literal("Back"), b -> minecraft.gui.setScreen(parent))
+				.bounds(width / 2 + 4, y, 150, 20).build());
 	}
 
+	/** Esc closes the whole BZgraph session; the Back button returns to the previous screen. */
 	@Override
 	public void onClose() {
-		minecraft.gui.setScreen(parent);
+		minecraft.gui.setScreen(nav.root());
 	}
 
 	@Override
@@ -72,7 +77,7 @@ public final class PatchDetailScreen extends Screen {
 		if (event.button() == 0) {
 			for (ItemLink l : itemLinks) {
 				if (event.x() >= l.x && event.x() <= l.x + l.w && event.y() >= l.y - 1 && event.y() <= l.y + font.lineHeight) {
-					minecraft.gui.setScreen(new GraphScreen(this, l.id, null));
+					GraphScreen.navigate(nav, l.id, null);
 					return true;
 				}
 			}

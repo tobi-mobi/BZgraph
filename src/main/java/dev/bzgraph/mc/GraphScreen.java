@@ -11,7 +11,9 @@ import dev.bzgraph.core.PricePoint;
 import dev.bzgraph.core.TimeRange;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.ConfirmLinkScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
@@ -30,7 +32,7 @@ import java.util.List;
 import java.util.Locale;
 
 /** Full-screen bazaar price-history graph. */
-public final class GraphScreen extends Screen {
+public final class GraphScreen extends Screen implements BzScreen {
 	private static final String ATTRIBUTION = "Data: SkyCofl (sky.coflnet.com)";
 
 	private static final int COLOR_BUY = 0xFFFFAA00;
@@ -59,7 +61,7 @@ public final class GraphScreen extends Screen {
 	private static final DateTimeFormatter FMT_MONTH = DateTimeFormatter.ofPattern("MMM yy", Locale.ROOT);
 	private static final DateTimeFormatter FMT_YEAR = DateTimeFormatter.ofPattern("yyyy", Locale.ROOT);
 
-	private final Screen parent;
+	private final GraphNav nav;
 	private final String productId;
 	private final String displayName;
 	/** Fixed error shown instead of a graph (e.g. hovered item isn't a bazaar product). */
@@ -81,6 +83,8 @@ public final class GraphScreen extends Screen {
 	private Button buyButton;
 	private Button sellButton;
 	private Button patchButton;
+	private Button backButton;
+	private Button forwardButton;
 
 	/** Patch markers drawn in the last frame (for hover/click). */
 	private record Cluster(int x, List<PatchNote> patches, boolean relevant) {
@@ -93,15 +97,22 @@ public final class GraphScreen extends Screen {
 	private int gx0, gy0, gx1, gy1;
 	private int attrX, attrY, attrW;
 
+	/** Starts a new graph session that returns to {@code parent} when closed. */
 	public GraphScreen(Screen parent, String productId, String displayName) {
-		this(parent, productId, displayName, null);
+		this(startNav(parent, productId, displayName), null);
 	}
 
-	private GraphScreen(Screen parent, String productId, String displayName, String fixedError) {
+	/** Shows the nav's current item. */
+	public GraphScreen(GraphNav nav) {
+		this(nav, null);
+	}
+
+	private GraphScreen(GraphNav nav, String fixedError) {
 		super(Component.literal("BZgraph"));
-		this.parent = parent;
-		this.productId = productId;
-		this.displayName = displayName;
+		this.nav = nav;
+		GraphNav.Entry e = nav.current();
+		this.productId = e == null ? null : e.productId();
+		this.displayName = e == null ? null : e.displayName();
 		this.fixedError = fixedError;
 		BzConfig cfg = BzGraphClient.get().config();
 		this.range = cfg.defaultRange();
@@ -109,8 +120,32 @@ public final class GraphScreen extends Screen {
 		this.showSell = cfg.showSell;
 	}
 
+	private static GraphNav startNav(Screen parent, String productId, String displayName) {
+		GraphNav nav = new GraphNav(parent);
+		nav.push(productId, displayName);
+		return nav;
+	}
+
 	public static GraphScreen notOnBazaar(Screen parent, String displayName) {
-		return new GraphScreen(parent, null, displayName, "\"" + displayName + "\" is not a bazaar item");
+		return new GraphScreen(new GraphNav(parent), "\"" + displayName + "\" is not a bazaar item");
+	}
+
+	/** Opens {@code productId} in the same session (adds it to the back/forward history). */
+	public static void navigate(GraphNav nav, String productId, String displayName) {
+		nav.push(productId, displayName);
+		Minecraft.getInstance().gui.setScreen(new GraphScreen(nav));
+	}
+
+	private void goBack() {
+		if (!nav.canBack()) return;
+		nav.back();
+		minecraft.gui.setScreen(new GraphScreen(nav));
+	}
+
+	private void goForward() {
+		if (!nav.canForward()) return;
+		nav.forward();
+		minecraft.gui.setScreen(new GraphScreen(nav));
 	}
 
 	@Override
@@ -151,6 +186,15 @@ public final class GraphScreen extends Screen {
 		rangeButtons.forEach(b -> b.active &= hasProduct);
 
 		attrW = font.width(ATTRIBUTION);
+		backButton = addRenderableWidget(Button.builder(Component.literal("<"), b -> goBack())
+				.bounds(px0 + PAD - 2, py0 + 4, 14, 14).build());
+		forwardButton = addRenderableWidget(Button.builder(Component.literal(">"), b -> goForward())
+				.bounds(px0 + PAD + 14, py0 + 4, 14, 14).build());
+		backButton.active = nav.canBack();
+		forwardButton.active = nav.canForward();
+		backButton.setTooltip(Tooltip.create(Component.literal("Previous item (Left arrow)")));
+		forwardButton.setTooltip(Tooltip.create(Component.literal("Next item (Right arrow)")));
+
 		attrX = px0 + PAD;
 		attrY = py1 - 12;
 
@@ -216,6 +260,14 @@ public final class GraphScreen extends Screen {
 			return true;
 		}
 		int k = event.key();
+		if (k == GLFW.GLFW_KEY_LEFT) {
+			goBack();
+			return true;
+		}
+		if (k == GLFW.GLFW_KEY_RIGHT) {
+			goForward();
+			return true;
+		}
 		if (productId != null && k >= GLFW.GLFW_KEY_1 && k <= GLFW.GLFW_KEY_5) {
 			selectRange(TimeRange.values()[k - GLFW.GLFW_KEY_1]);
 			return true;
@@ -233,6 +285,14 @@ public final class GraphScreen extends Screen {
 
 	@Override
 	public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+		if (event.button() == GLFW.GLFW_MOUSE_BUTTON_4) {
+			goBack();
+			return true;
+		}
+		if (event.button() == GLFW.GLFW_MOUSE_BUTTON_5) {
+			goForward();
+			return true;
+		}
 		if (event.button() == 0 && overAttribution(event.x(), event.y())) {
 			ConfirmLinkScreen.confirmLinkNow(this, BzGraphClient.COFL_URL);
 			return true;
@@ -240,7 +300,7 @@ public final class GraphScreen extends Screen {
 		Cluster c = event.button() == 0 ? hoveredCluster(event.x(), event.y()) : null;
 		if (c != null) {
 			if (c.patches().size() == 1) {
-				minecraft.gui.setScreen(new PatchDetailScreen(this, c.patches().getFirst(), productId, historyPoints(), range));
+				minecraft.gui.setScreen(new PatchDetailScreen(this, nav, c.patches().getFirst(), productId, historyPoints(), range));
 			} else {
 				openPatchList(c.patches());
 			}
@@ -255,7 +315,7 @@ public final class GraphScreen extends Screen {
 	}
 
 	private void openPatchList(List<PatchNote> preset) {
-		minecraft.gui.setScreen(new PatchListScreen(this, preset, productId, historyPoints(), range));
+		minecraft.gui.setScreen(new PatchListScreen(this, nav, preset, productId, historyPoints(), range));
 	}
 
 	private Cluster hoveredCluster(double mx, double my) {
@@ -271,9 +331,10 @@ public final class GraphScreen extends Screen {
 		return mx >= attrX && mx <= attrX + attrW && my >= attrY - 1 && my <= attrY + font.lineHeight;
 	}
 
+	/** Esc closes the whole BZgraph session, back to where it was opened from. */
 	@Override
 	public void onClose() {
-		minecraft.gui.setScreen(parent);
+		minecraft.gui.setScreen(nav.root());
 	}
 
 	@Override
@@ -328,15 +389,20 @@ public final class GraphScreen extends Screen {
 		String name = displayName != null && !displayName.isBlank() ? displayName : productId;
 		String title = name == null ? "BZgraph" : name;
 		if (productId != null && displayName != null && !productId.equals(displayName)) {
-			g.text(font, Component.literal(title).append(Component.literal("  " + productId).withStyle(ChatFormatting.DARK_GRAY)), px0 + PAD, py0 + PAD, COLOR_TEXT);
+			g.text(font, Component.literal(title).append(Component.literal("  " + productId).withStyle(ChatFormatting.DARK_GRAY)), titleX(), py0 + PAD, COLOR_TEXT);
 		} else {
-			g.text(font, title, px0 + PAD, py0 + PAD, COLOR_TEXT);
+			g.text(font, title, titleX(), py0 + PAD, COLOR_TEXT);
 		}
 		if (times.length == 0) return;
 		int y = py0 + PAD + 11;
 		int x = px0 + PAD;
 		if (showBuy) x = drawStats(g, "Buy", buys, COLOR_BUY, x, y) + 16;
 		if (showSell) drawStats(g, "Sell", sells, COLOR_SELL, x, y);
+	}
+
+	/** The title starts after the back/forward arrows. */
+	private int titleX() {
+		return px0 + PAD + 34;
 	}
 
 	private int drawStats(GuiGraphicsExtractor g, String label, double[] vals, int color, int x, int y) {

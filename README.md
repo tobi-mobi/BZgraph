@@ -9,10 +9,18 @@ Client-side Fabric mod for **Minecraft 26.2** that shows an in-game price-histor
 
 - **Hover + key**: hover an item in any container GUI (inventory, bazaar menu, chests) and press **G** to open its graph.
   With no GUI open, **G** graphs the item in your main hand.
+- **Roughly Enough Items (REI)**: if REI is installed, hover any item in REI's item list, favorites or recipe screens
+  and press **G** (search for an item in REI, then graph it). REI is optional; BZgraph talks to it through reflection
+  and simply skips this when REI isn't there. G is ignored while a text box (REI search, anvil, creative search) is
+  focused.
 - **Command**: `/bzgraph <ITEM_ID>` with tab-completion of all bazaar product IDs (e.g. `/bzgraph ENCHANTED_DIAMOND`).
 - **Graph screen** (a centered panel, about three quarters of the screen)
   - Buy and sell price lines, each toggleable (Buy / Sell buttons).
-  - Time ranges **1D / 1W / 1M / 1Y / ALL** (buttons or keys `1`–`5`). `R` forces a refresh. `G` or `Esc` closes.
+  - Time ranges **1D / 1W / 1M / 1Y / ALL** (buttons or keys `1`–`5`). `R` forces a refresh.
+  - **‹ ›** arrows (or Left/Right arrow keys, or mouse back/forward buttons) move through the items you've opened in
+    this session, e.g. after clicking an item in a patch note.
+  - `Esc` (or `G`) closes BZgraph entirely and returns to the screen you opened it from; the patch screens' **Back**
+    button goes back one step.
   - Hover crosshair with date, buy, sell and volume.
   - Y-axis with compact coin formatting (`950`, `1.2k`, `3.4M`, `1.5B`), date x-axis.
   - Header with current / min / max for each visible series.
