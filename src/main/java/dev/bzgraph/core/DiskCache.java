@@ -22,7 +22,8 @@ import java.util.List;
  * call them off the render thread.
  */
 public final class DiskCache {
-	private static final int FORMAT_VERSION = 1;
+	/** 2: points also carry the bucket's min/max prices (older caches are ignored and refetched). */
+	private static final int FORMAT_VERSION = 2;
 	private final Path dir;
 
 	public DiskCache(Path dir) {
@@ -59,7 +60,8 @@ public final class DiskCache {
 			for (JsonElement e : pts) {
 				JsonArray a = e.getAsJsonArray();
 				points.add(new PricePoint(Instant.ofEpochMilli(a.get(0).getAsLong()),
-						d(a.get(1)), d(a.get(2)), d(a.get(3)), d(a.get(4))));
+						d(a.get(1)), d(a.get(2)), d(a.get(3)), d(a.get(4)),
+						d(a.get(5)), d(a.get(6)), d(a.get(7)), d(a.get(8))));
 			}
 			return new CachedHistory(fetchedAt, points);
 		} catch (Exception e) {
@@ -76,12 +78,16 @@ public final class DiskCache {
 		root.addProperty("fetchedAt", history.fetchedAt().toEpochMilli());
 		JsonArray pts = new JsonArray(history.points().size());
 		for (PricePoint p : history.points()) {
-			JsonArray a = new JsonArray(5);
+			JsonArray a = new JsonArray(9);
 			a.add(p.timestamp().toEpochMilli());
 			a.add(j(p.buy()));
 			a.add(j(p.sell()));
 			a.add(j(p.buyVolume()));
 			a.add(j(p.sellVolume()));
+			a.add(j(p.minBuy()));
+			a.add(j(p.maxBuy()));
+			a.add(j(p.minSell()));
+			a.add(j(p.maxSell()));
 			pts.add(a);
 		}
 		root.add("points", pts);

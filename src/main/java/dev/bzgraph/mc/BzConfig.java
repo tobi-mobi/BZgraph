@@ -27,6 +27,10 @@ public final class BzConfig {
 	 * Must be https://, or http:// to a LAN host (192.168.x.x, *.local, ...).
 	 */
 	public String patchIndexUrl = "";
+	/** Show your own bazaar trades (from chat and imported logs) as markers on graphs. */
+	public boolean showTrades = true;
+	/** On startup, import trades from this Minecraft instance's older log files (each file only once). */
+	public boolean importLogsOnStartup = true;
 
 	private transient Path file;
 

@@ -15,12 +15,15 @@ import dev.bzgraph.mc.GraphNav;
 import dev.bzgraph.mc.PatchListScreen;
 import dev.bzgraph.mc.ReiCompat;
 import dev.bzgraph.mc.RrvCompat;
+import dev.bzgraph.mc.TradeTracker;
 import dev.bzgraph.mixin.AbstractContainerScreenAccessor;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenKeyboardEvents;
@@ -62,6 +65,7 @@ public final class BzGraphClient implements ClientModInitializer {
 	private BzConfig config;
 	private ApiClient api;
 	private HistoryRepository repository;
+	private TradeTracker trades;
 	private PatchIndexRepository patches;
 	private String defaultPatchIndexUrl = "";
 	private final AtomicBoolean patchesStarted = new AtomicBoolean();
@@ -93,6 +97,14 @@ public final class BzGraphClient implements ClientModInitializer {
 		});
 		repository = new HistoryRepository(api, api, new DiskCache(dir.resolve("cache")), 64, io, Instant::now,
 				t -> LOGGER.warn("BZgraph background error", t));
+
+		// Your own bazaar trades: from chat (live) and from old log files (once per file).
+		trades = new TradeTracker(dir, api, io);
+		trades.start(config.importLogsOnStartup);
+		// GAME_CANCELED too: other mods (e.g. chat filters) may hide bazaar messages, but they still happened.
+		ClientReceiveMessageEvents.GAME.register((msg, overlay) -> onGameMessage(msg, overlay));
+		ClientReceiveMessageEvents.GAME_CANCELED.register((msg, overlay) -> onGameMessage(msg, overlay));
+		ClientLifecycleEvents.CLIENT_STOPPING.register(mc -> trades.stop());
 
 		defaultPatchIndexUrl = FabricLoader.getInstance().getModContainer(MOD_ID)
 				.map(c -> c.getMetadata().getCustomValue("bzgraph:patch_index_url"))
@@ -136,7 +148,17 @@ public final class BzGraphClient implements ClientModInitializer {
 							pendingScreen = new PatchListScreen(null, new GraphNav(null), null, null, null, null);
 							return 1;
 						}))
-						.then(ClientCommands.argument("item", StringArgumentType.greedyString())
+						.then(ClientCommands.literal("trades")
+									.executes(c -> {
+										int n = trades.service().store().count(TradeTracker.account());
+										c.getSource().sendFeedback(Component.literal("BZgraph: " + n + " recorded bazaar trades for "
+												+ TradeTracker.account() + ". Import older ones with /bzgraph trades import <logs folder>"));
+										return 1;
+									})
+									.then(ClientCommands.literal("import")
+											.then(ClientCommands.argument("folder", StringArgumentType.greedyString())
+													.executes(c -> importTrades(c.getSource(), StringArgumentType.getString(c, "folder"))))))
+							.then(ClientCommands.argument("item", StringArgumentType.greedyString())
 								.suggests((c, b) -> {
 									ensureProducts();
 									Set<String> p = products;
@@ -155,6 +177,43 @@ public final class BzGraphClient implements ClientModInitializer {
 
 	public BzConfig config() {
 		return config;
+	}
+
+	/** Bazaar product IDs, or null until loaded. */
+	public Set<String> products() {
+		return products;
+	}
+
+	public TradeTracker trades() {
+		return trades;
+	}
+
+	private void onGameMessage(Component msg, boolean overlay) {
+		if (!overlay && isActive()) trades.onMessage(msg);
+	}
+
+	private int importTrades(FabricClientCommandSource src, String folder) {
+		Path dir;
+		try {
+			dir = Path.of(folder.strip().replaceAll("^\"|\"$", ""));
+		} catch (RuntimeException e) {
+			src.sendError(Component.literal("Not a valid folder path: " + folder));
+			return 0;
+		}
+		if (!java.nio.file.Files.isDirectory(dir)) {
+			src.sendError(Component.literal("Folder not found: " + dir));
+			return 0;
+		}
+		src.sendFeedback(Component.literal("BZgraph: importing trades from " + dir + " ..."));
+		trades.importFolder(dir).whenComplete((r, err) -> Minecraft.getInstance().execute(() -> {
+			if (err != null) {
+				src.sendError(Component.literal("Import failed: " + err.getMessage()));
+			} else {
+				src.sendFeedback(Component.literal("BZgraph: imported " + r.trades() + " trades from " + r.files()
+						+ " log files (" + r.skippedAsLive() + " already recorded live)."));
+			}
+		}));
+		return 1;
 	}
 
 	public HistoryRepository repository() {
@@ -203,6 +262,7 @@ public final class BzGraphClient implements ClientModInitializer {
 	}
 
 	private void onTick(Minecraft mc) {
+		trades.tick();
 		if (pendingScreen != null) {
 			Screen s = pendingScreen;
 			pendingScreen = null;
@@ -276,6 +336,7 @@ public final class BzGraphClient implements ClientModInitializer {
 				productsRetryAt = System.currentTimeMillis() + 60_000;
 			} else {
 				products = Set.copyOf(set);
+				trades.ensureNames(products);
 				LOGGER.info("Loaded {} bazaar products", set.size());
 			}
 			productsLoading.set(false);

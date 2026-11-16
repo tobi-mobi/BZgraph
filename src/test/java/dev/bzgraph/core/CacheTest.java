@@ -46,7 +46,7 @@ class CacheTest {
 		DiskCache cache = new DiskCache(dir);
 		CachedHistory h = new CachedHistory(T0, List.of(
 				new PricePoint(Instant.parse("2026-11-16T11:00:00Z"), 1.5, Double.NaN, 10, 20),
-				new PricePoint(Instant.parse("2026-11-16T11:05:00.250Z"), 2.5, 2.0, Double.NaN, 1)));
+				new PricePoint(Instant.parse("2026-11-16T11:05:00.250Z"), 2.5, 2.0, Double.NaN, 1, 2.0, 3.0, 1.5, 2.25)));
 		cache.write("INK_SACK:3", TimeRange.WEEK, h);
 		assertTrue(Files.exists(dir.resolve("INK_SACK~3_1W.json")));
 		assertTrue(Files.exists(cache.fileFor("ENCHANTED_DIAMOND", TimeRange.DAY).getParent()));
@@ -58,6 +58,8 @@ class CacheTest {
 		assertEquals(2, back.points().size());
 		assertTrue(Double.isNaN(back.points().get(0).sell()));
 		assertEquals(h.points().get(1).timestamp(), back.points().get(1).timestamp());
+		assertEquals(h.points().get(1), back.points().get(1), "min/max ranges survive the round trip");
+		assertTrue(Double.isNaN(back.points().get(0).minSell()));
 		assertNull(cache.read("INK_SACK:3", TimeRange.DAY));
 	}
 

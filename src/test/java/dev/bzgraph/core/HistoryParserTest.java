@@ -29,6 +29,11 @@ class HistoryParserTest {
 		assertEquals(123456, p.buyVolume(), 1e-9);
 		assertEquals(654321, p.sellVolume(), 1e-9);
 		assertEquals(777777, p.volume(), 1e-9);
+		assertEquals(1290, p.minBuy(), 1e-9);
+		assertEquals(1310, p.maxBuy(), 1e-9);
+		assertEquals(1240, p.minSell(), 1e-9);
+		assertEquals(1250, p.maxSell(), 1e-9);
+		assertTrue(Double.isNaN(HistoryParser.parse(SAMPLE).get(1).minBuy()), "missing range = NaN");
 	}
 
 	@Test

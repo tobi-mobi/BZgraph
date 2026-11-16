@@ -24,6 +24,8 @@ Client-side Fabric mod for **Minecraft 26.2** that shows an in-game price-histor
   - `Esc` (or `G`) closes BZgraph entirely and returns to the screen you opened it from; the patch screens' **Back**
     button goes back one step.
   - Hover crosshair with date, buy, sell and volume.
+  - A faint band behind each line shows the lowest–highest price within each sample (a whole day on 1M/1Y/ALL),
+    since a daily line can't show moves within the day; your trade markers fall inside it.
   - Y-axis with compact coin formatting (`950`, `1.2k`, `3.4M`, `1.5B`), date x-axis.
   - Header with current / min / max for each visible series.
   - Loading spinner, "Refreshing…" badge, and clear errors: offline, rate limited (auto-retry), not a bazaar item, no data.
@@ -33,6 +35,9 @@ Client-side Fabric mod for **Minecraft 26.2** that shows an in-game price-histor
   mention the item, all patches, or none). Markers close together merge into one; clicking it lists them.
 - **Patch note browser**: `/bzgraph patches` or `P` on a graph — searchable list with title, date, a short summary,
   mentioned bazaar items (click to graph) and an "Open full post" link to the Hypixel forums.
+- **Your trades on the graph**: ▼ where you sold and ▲ where you bought, at the price you got. Hover for amount, price,
+  coins, time and how the price has moved since. Nearby trades merge into one marker. "Trades: On/Off" button.
+  See [Your trades](#your-trades).
 - Only active on Hypixel (server address contains `hypixel.net`) — configurable.
 
 ## Keybind
@@ -52,7 +57,9 @@ Client-side Fabric mod for **Minecraft 26.2** that shows an in-game price-histor
   "showSell": true,
   "defaultRange": "1W",
   "patchMarkers": "RELEVANT",
-  "patchIndexUrl": ""
+  "patchIndexUrl": "",
+  "showTrades": true,
+  "importLogsOnStartup": true
 }
 ```
 
@@ -79,6 +86,9 @@ Patch notes come from a JSON index you host, not from the forum directly:
   `patch-index/auto`. Before merging: write each new `summary` **in your own words**, add `itemNotes` for the items
   the patch really affects, and remove `"needsReview": true`. PRs and pushes touching `patch-index/` are validated.
   Enable *Settings → Actions → General → Allow GitHub Actions to create and approve pull requests*.
+- **Keep `updated` current.** The mod uses whichever copy (its 24 h download cache or the one bundled in the jar)
+  has the newer `updated` stamp. The workflow bumps it automatically when `index.json` changes on `main` without
+  it; locally, run `python patch-index/scripts/update_index.py --mode touch` after editing.
 
 The mod downloads the index once per session (cached 24 h in `config/bzgraph/cache/patch_index.json`, via the same
 1-request-per-second queue) and also bundles the copy from build time, so it works offline. Set the default URL in
@@ -86,6 +96,27 @@ The mod downloads the index once per session (cached 24 h in `config/bzgraph/cac
 To self-host later, serve the same file from any web server and change that URL (or players' `patchIndexUrl`).
 
 Patch markers show *timing*, not cause — prices also move with events, mayors and the market.
+
+## Your trades
+
+Hypixel has no API for your own bazaar history, so BZgraph records it from the bazaar messages in your chat:
+`Sold 32x … for … coins!`, `Bought …`, `Your Sell Offer for … was filled!`, `Claimed … coins from selling … at … each!`,
+and the matching buy-order messages.
+
+- **Instant sells/buys** are recorded immediately.
+- **Offers**: placing one is remembered; the trade is recorded when it's *filled*, at the price of your newest open
+  offer for that item. Cancelling an offer (e.g. after being undercut) and relisting records nothing, so the fill uses
+  the new price. The claim message then confirms the exact listing price. Coins claimed from an offer that was only
+  partly filled are recorded at claim time and marked "partly filled".
+- Only messages that *start* with `[Bazaar]` count, so other players can't fake trades by typing them in chat.
+  Messages hidden by other mods are still recorded.
+- **Old trades**: Minecraft's log files contain your chat history. On startup BZgraph imports trades from this
+  instance's `logs/` folder (each file once). Import another launcher's folder with
+  `/bzgraph trades import <path to logs folder>`; `/bzgraph trades` shows how many are recorded.
+  Logs from sessions BZgraph recorded live are skipped, so nothing is counted twice.
+- Trades are kept forever, per Minecraft account, in `config/bzgraph/trades.json`. Nothing is uploaded.
+- Chat names ("Fine Citrine Gemstone", "Legion I") are mapped to bazaar IDs using Hypixel's public item list
+  (no API key), cached for a week.
 
 ## How it works
 

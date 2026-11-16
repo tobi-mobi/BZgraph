@@ -37,7 +37,8 @@ public final class HistoryParser {
 			JsonObject o = el.getAsJsonObject();
 			Instant ts = parseTimestamp(str(o, "timestamp"));
 			if (ts == null) continue;
-			out.add(new PricePoint(ts, num(o, "buy"), num(o, "sell"), num(o, "buyVolume"), num(o, "sellVolume")));
+			out.add(new PricePoint(ts, num(o, "buy"), num(o, "sell"), num(o, "buyVolume"), num(o, "sellVolume"),
+					num(o, "minBuy"), num(o, "maxBuy"), num(o, "minSell"), num(o, "maxSell")));
 		}
 		return out;
 	}

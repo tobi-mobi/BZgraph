@@ -9,6 +9,7 @@ import dev.bzgraph.core.PatchNote;
 import dev.bzgraph.core.PriceImpact;
 import dev.bzgraph.core.PricePoint;
 import dev.bzgraph.core.TimeRange;
+import dev.bzgraph.core.trade.Trade;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.Minecraft;
@@ -30,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /** Full-screen bazaar price-history graph. */
 public final class GraphScreen extends Screen implements BzScreen {
@@ -54,6 +56,10 @@ public final class GraphScreen extends Screen implements BzScreen {
 	private static final int COLOR_PATCH_OTHER = 0x40FFFFFF;
 	/** Markers closer than this many pixels are merged into one cluster. */
 	private static final int CLUSTER_PX = 5;
+	private static final int COLOR_TRADE_SELL = 0xFFFF5555;
+	private static final int COLOR_TRADE_BUY = 0xFF55FF55;
+	private static final int TRADE_CLUSTER_PX = 4;
+	private static final DateTimeFormatter FMT_TRADE = DateTimeFormatter.ofPattern("MMM d, HH:mm", Locale.ROOT);
 
 	private static final DateTimeFormatter FMT_TOOLTIP = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.ROOT);
 	private static final DateTimeFormatter FMT_TIME = DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT);
@@ -81,11 +87,20 @@ public final class GraphScreen extends Screen implements BzScreen {
 	private double[] buys = new double[0];
 	private double[] sells = new double[0];
 	private double[] vols = new double[0];
+	// Lowest/highest price within each sample's bucket (a day on long ranges), for the band behind each line.
+	private double[] minBuys = new double[0], maxBuys = new double[0], minSells = new double[0], maxSells = new double[0];
 
 	private final List<Button> rangeButtons = new ArrayList<>();
 	private Button buyButton;
 	private Button sellButton;
 	private Button patchButton;
+	private Button tradesButton;
+
+	/** Your trades merged per screen column and side, as drawn in the last frame. */
+	private record TradeCluster(Trade.Side side, int x, int y, List<Trade> trades) {
+	}
+
+	private List<TradeCluster> tradeClusters = List.of();
 	private Button backButton;
 	private Button forwardButton;
 
@@ -154,7 +169,7 @@ public final class GraphScreen extends Screen implements BzScreen {
 	@Override
 	protected void init() {
 		// ~3/4 of the screen, but never so small the buttons overlap or so big it feels full-screen
-		int pw = Math.min(width - 16, clamp(Math.round(width * 0.72f), 404, 560));
+		int pw = Math.min(width - 16, clamp(Math.round(width * 0.72f), 460, 600));
 		int ph = Math.min(height - 16, clamp(Math.round(height * 0.78f), 240, 330));
 		px0 = (width - pw) / 2;
 		py0 = (height - ph) / 2;
@@ -182,9 +197,17 @@ public final class GraphScreen extends Screen implements BzScreen {
 				.bounds(px1 - PAD - 56 - 2 - 56, buttonsY, 56, 20).build());
 		patchButton = addRenderableWidget(Button.builder(Component.empty(), b -> cycleMarkers())
 				.bounds(px1 - PAD - 56 - 2 - 56 - 2 - 84, buttonsY, 84, 20).build());
+		tradesButton = addRenderableWidget(Button.builder(Component.empty(), b -> toggleTrades())
+				.bounds(px1 - PAD - 56 - 2 - 56 - 2 - 84 - 2 - 58, buttonsY, 58, 20).build());
+		tradesButton.setTooltip(Tooltip.create(Component.literal("Your own bazaar trades on this item: "
+				+ "\u25bc sells, \u25b2 buys. Recorded from chat and imported from your log files.")));
 		updateToggleLabels();
 		boolean hasProduct = productId != null;
-		buyButton.active = sellButton.active = patchButton.active = hasProduct;
+		buyButton.active = sellButton.active = patchButton.active = tradesButton.active = hasProduct;
+		if (hasProduct) {
+			Set<String> products = BzGraphClient.get().products();
+			if (products != null) BzGraphClient.get().trades().ensureNames(products);
+		}
 		if (hasProduct) BzGraphClient.get().ensurePatches();
 		rangeButtons.forEach(b -> b.active &= hasProduct);
 
@@ -234,6 +257,13 @@ public final class GraphScreen extends Screen implements BzScreen {
 		cfg.save();
 	}
 
+	private void toggleTrades() {
+		BzConfig cfg = BzGraphClient.get().config();
+		cfg.showTrades = !cfg.showTrades;
+		cfg.save();
+		updateToggleLabels();
+	}
+
 	private void cycleMarkers() {
 		BzConfig cfg = BzGraphClient.get().config();
 		BzConfig.Markers next = BzConfig.Markers.values()[(cfg.patchMarkers().ordinal() + 1) % BzConfig.Markers.values().length];
@@ -250,6 +280,8 @@ public final class GraphScreen extends Screen implements BzScreen {
 			case OFF -> "Patches: Off";
 		};
 		patchButton.setMessage(Component.literal(label).withColor(m == BzConfig.Markers.OFF ? COLOR_DIM : COLOR_PATCH));
+		boolean trades = BzGraphClient.get().config().showTrades;
+		tradesButton.setMessage(Component.literal(trades ? "Trades: On" : "Trades: Off").withColor(trades ? COLOR_TEXT : COLOR_DIM));
 		buyButton.setMessage(Component.literal((showBuy ? "■ " : "□ ") + "Buy").withColor(showBuy ? COLOR_BUY : COLOR_DIM));
 		sellButton.setMessage(Component.literal((showSell ? "■ " : "□ ") + "Sell").withColor(showSell ? COLOR_SELL : COLOR_DIM));
 	}
@@ -497,6 +529,7 @@ public final class GraphScreen extends Screen implements BzScreen {
 		if (data == null || data.points().isEmpty()) {
 			times = new long[0];
 			buys = sells = vols = new double[0];
+			minBuys = maxBuys = minSells = maxSells = new double[0];
 			return;
 		}
 		List<PricePoint> pts = data.points();
@@ -508,12 +541,20 @@ public final class GraphScreen extends Screen implements BzScreen {
 		buys = new double[n];
 		sells = new double[n];
 		vols = new double[n];
+		minBuys = new double[n];
+		maxBuys = new double[n];
+		minSells = new double[n];
+		maxSells = new double[n];
 		for (int i = 0; i < n; i++) {
 			PricePoint p = i < pts.size() ? pts.get(i) : live;
 			times[i] = p.timestamp().toEpochMilli();
 			buys[i] = p.buy();
 			sells[i] = p.sell();
 			vols[i] = p.volume();
+			minBuys[i] = p.minBuy();
+			maxBuys[i] = p.maxBuy();
+			minSells[i] = p.minSell();
+			maxSells[i] = p.maxSell();
 		}
 		if (addLive) liveIndex = n - 1;
 	}
@@ -570,17 +611,214 @@ public final class GraphScreen extends Screen implements BzScreen {
 		g.horizontalLine(gx0, gx1, gy1, COLOR_AXIS);
 
 		int w = gx1 - gx0 + 1;
+		// Day (bucket) low-high bands first, so the lines and markers sit on top of them.
+		if (showSell) drawBand(g, minSells, maxSells, tMin, tMax, w, lo, hi, COLOR_SELL);
+		if (showBuy) drawBand(g, minBuys, maxBuys, tMin, tMax, w, lo, hi, COLOR_BUY);
 		if (showSell) drawSeries(g, Downsampler.columns(times, sells, tMin, tMax, w), lo, hi, COLOR_SELL);
 		if (showBuy) drawSeries(g, Downsampler.columns(times, buys, tMin, tMax, w), lo, hi, COLOR_BUY);
 
 		drawLiveMarker(g, tMin, tMax, lo, hi);
+		drawTradeMarkers(g, tMin, tMax, lo, hi);
 		drawPatchMarkers(g, tMin, tMax);
 		Cluster hc = hoveredCluster(mx, my);
+		TradeCluster tc = hc == null ? hoveredTrade(mx, my) : null;
 		if (hc != null) {
 			drawPatchTooltip(g, hc, mx, my);
+		} else if (tc != null) {
+			drawTradeTooltip(g, tc, mx, my);
 		} else if (mx >= gx0 && mx <= gx1 && my >= gy0 && my <= gy1) {
 			drawCrosshair(g, mx, my, tMin, tMax, lo, hi);
 		}
+	}
+
+	// ---------------------------------------------------------------- your trades
+
+	private void drawTradeMarkers(GuiGraphicsExtractor g, long tMin, long tMax, double lo, double hi) {
+		tradeClusters = List.of();
+		if (!BzGraphClient.get().config().showTrades || productId == null) return;
+		List<Trade> trades = BzGraphClient.get().trades().forProduct(productId);
+		if (trades.isEmpty()) return;
+		List<TradeCluster> out = new ArrayList<>();
+		for (Trade.Side side : Trade.Side.values()) {
+			List<Trade> cur = new ArrayList<>();
+			int curCol = Integer.MIN_VALUE;
+			for (Trade t : trades) {
+				long ms = t.time().toEpochMilli();
+				if (t.side() != side || ms < tMin || ms > tMax) continue;
+				int x = gx0 + (int) Math.round((double) (ms - tMin) / (tMax - tMin) * (gx1 - gx0));
+				int col = (x - gx0) / TRADE_CLUSTER_PX;
+				if (!cur.isEmpty() && col != curCol) {
+					out.add(tradeCluster(side, cur, tMin, tMax, lo, hi));
+					cur = new ArrayList<>();
+				}
+				curCol = col;
+				cur.add(t);
+			}
+			if (!cur.isEmpty()) out.add(tradeCluster(side, cur, tMin, tMax, lo, hi));
+		}
+		tradeClusters = out;
+		for (TradeCluster c : out) {
+			int size = c.trades().size() > 1 ? 4 : 3;
+			triangle(g, c.x(), c.y(), size + 1, c.side() == Trade.Side.SELL, 0xFF000000);
+			triangle(g, c.x(), c.y() + (c.side() == Trade.Side.SELL ? -1 : 1), size, c.side() == Trade.Side.SELL,
+					c.side() == Trade.Side.SELL ? COLOR_TRADE_SELL : COLOR_TRADE_BUY);
+		}
+	}
+
+	/** Amount-weighted average price of the cluster, placed where that price is on the graph. */
+	private TradeCluster tradeCluster(Trade.Side side, List<Trade> ts, long tMin, long tMax, double lo, double hi) {
+		double coins = 0, items = 0;
+		long msSum = 0;
+		for (Trade t : ts) {
+			msSum += t.time().toEpochMilli() / ts.size();
+			if (t.hasPrice()) {
+				coins += t.unitPrice() * t.amount();
+				items += t.amount();
+			}
+		}
+		long ms = msSum;
+		int x = gx0 + (int) Math.round((double) (ms - tMin) / (tMax - tMin) * (gx1 - gx0));
+		double price = items > 0 ? coins / items : priceOnGraphAt(ts.getFirst());
+		int y = Double.isNaN(price) ? (gy0 + gy1) / 2 : yFor(price, lo, hi);
+		return new TradeCluster(side, x, Math.max(gy0 + 4, Math.min(gy1 - 4, y)), List.copyOf(ts));
+	}
+
+	/**
+	 * The graph line a trade corresponds to: instant sells and filled buy orders go against the highest buy
+	 * order ("sell" line); filled sell offers and instant buys against the lowest sell offer ("buy" line).
+	 */
+	/**
+	 * Shades each column between the lowest and highest price of the sample(s) it covers. Where a sample spans
+	 * several columns (one point per day on long ranges), its range is held until the next sample starts, since
+	 * it describes the whole bucket. The band doesn't stretch the y axis; extreme spikes are clipped.
+	 */
+	private void drawBand(GuiGraphicsExtractor g, double[] mins, double[] maxs, long tMin, long tMax, int w,
+						  double lo, double hi, int color) {
+		Downsampler.Columns low = Downsampler.columns(times, mins, tMin, tMax, w);
+		Downsampler.Columns high = Downsampler.columns(times, maxs, tMin, tMax, w);
+		int fill = (0x30 << 24) | (color & 0xFFFFFF);
+		for (int col = 0; col < w; col++) {
+			double a, b;
+			if (low.count()[col] > 0 && high.count()[col] > 0) {
+				a = low.min()[col];
+				b = high.max()[col];
+			} else {
+				int i = sampleAt(tMin + (long) ((double) col / Math.max(1, w - 1) * (tMax - tMin)));
+				if (i < 0) continue;
+				a = mins[i];
+				b = maxs[i];
+			}
+			if (Double.isNaN(a) || Double.isNaN(b) || b < a) continue;
+			int y0 = Math.max(gy0, yFor(b, lo, hi));
+			int y1 = Math.min(gy1, yFor(a, lo, hi));
+			if (y0 > gy1 || y1 < gy0) continue;
+			g.fill(gx0 + col, y0, gx0 + col + 1, Math.max(y0, y1) + 1, fill);
+		}
+	}
+
+	/** Index of the sample whose bucket contains {@code t} (latest sample at or before t), or -1. */
+	private int sampleAt(long t) {
+		int i = Arrays.binarySearch(times, t);
+		if (i < 0) i = -i - 2;
+		return i;
+	}
+
+	/** "low – high" of the bucket a trade/crosshair falls in, for the given line; null if unknown. */
+	private String rangeText(double[] mins, double[] maxs, int i) {
+		if (i < 0 || i >= mins.length || Double.isNaN(mins[i]) || Double.isNaN(maxs[i])) return null;
+		return CoinFormat.compact(mins[i]) + " – " + CoinFormat.compact(maxs[i]);
+	}
+
+	private double[] seriesFor(Trade t) {
+		boolean sellLine = (t.side() == Trade.Side.SELL) == (t.kind() == Trade.Kind.INSTANT);
+		return sellLine ? sells : buys;
+	}
+
+	private double priceOnGraphAt(Trade t) {
+		if (times.length == 0) return Double.NaN;
+		int idx = Arrays.binarySearch(times, t.time().toEpochMilli());
+		if (idx < 0) idx = Math.min(times.length - 1, Math.max(0, -idx - 1));
+		return seriesFor(t)[idx];
+	}
+
+	/** Filled triangle; for sells it points down onto the price, for buys it points up onto it. */
+	private static void triangle(GuiGraphicsExtractor g, int x, int y, int size, boolean down, int color) {
+		for (int i = 0; i < size; i++) {
+			int half = i; // row i is i pixels to each side of the tip
+			int row = down ? y - i : y + i;
+			g.fill(x - half, row, x + half + 1, row + 1, color);
+		}
+	}
+
+	private TradeCluster hoveredTrade(double mx, double my) {
+		TradeCluster best = null;
+		double bestD = 7;
+		for (TradeCluster c : tradeClusters) {
+			double cy = c.y() + (c.side() == Trade.Side.SELL ? -2 : 2);
+			double d = Math.hypot(mx - c.x(), my - cy);
+			if (d < bestD) {
+				bestD = d;
+				best = c;
+			}
+		}
+		return best;
+	}
+
+	private void drawTradeTooltip(GuiGraphicsExtractor g, TradeCluster c, int mx, int my) {
+		List<Component> lines = new ArrayList<>();
+		boolean sell = c.side() == Trade.Side.SELL;
+		int color = sell ? COLOR_TRADE_SELL : COLOR_TRADE_BUY;
+		long items = 0;
+		double coins = 0, pricedItems = 0;
+		for (Trade t : c.trades()) {
+			items += t.amount();
+			if (t.hasPrice()) {
+				coins += t.unitPrice() * t.amount();
+				pricedItems += t.amount();
+			}
+		}
+		ZoneId zone = ZoneId.systemDefault();
+		if (c.trades().size() == 1) {
+			Trade t = c.trades().getFirst();
+			String kind = switch (t.kind()) {
+				case INSTANT -> sell ? "instant sell" : "instant buy";
+				case OFFER -> sell ? "sell offer filled" : "buy order filled";
+				case PARTIAL -> sell ? "partly filled offer (claimed)" : "partly filled order (claimed)";
+			};
+			lines.add(Component.literal((sell ? "You sold " : "You bought ") + t.amount() + "x").withColor(color)
+					.append(Component.literal("  " + kind).withColor(COLOR_DIM)));
+			lines.add(t.hasPrice()
+					? Component.literal(CoinFormat.full(t.unitPrice()) + " each").withColor(COLOR_TEXT)
+					.append(Component.literal("  (" + CoinFormat.compact(t.unitPrice() * t.amount()) + " coins)").withColor(COLOR_DIM))
+					: Component.literal("price unknown").withColor(COLOR_DIM));
+			lines.add(Component.literal(FMT_TRADE.format(t.time().atZone(zone))).withColor(COLOR_DIM));
+		} else {
+			lines.add(Component.literal(c.trades().size() + (sell ? " sells" : " buys") + " · " + items + " items").withColor(color));
+			if (pricedItems > 0) {
+				lines.add(Component.literal("avg " + CoinFormat.full(coins / pricedItems) + " each").withColor(COLOR_TEXT)
+						.append(Component.literal("  (" + CoinFormat.compact(coins) + " coins)").withColor(COLOR_DIM)));
+			}
+			lines.add(Component.literal(FMT_TRADE.format(c.trades().getFirst().time().atZone(zone)) + " – "
+					+ FMT_TRADE.format(c.trades().getLast().time().atZone(zone))).withColor(COLOR_DIM));
+		}
+		// the market's low-high in the bucket where the (first) trade happened, on the matching line
+		boolean sellLine = seriesFor(c.trades().getFirst()) == sells;
+		String range = rangeText(sellLine ? minSells : minBuys, sellLine ? maxSells : maxBuys,
+				sampleAt(c.trades().getFirst().time().toEpochMilli()));
+		if (range != null) {
+			lines.add(Component.literal("market then: " + range).withColor(COLOR_DIM)
+					.append(Component.literal(sellLine ? "  (sell)" : "  (buy)").withColor(sellLine ? COLOR_SELL : COLOR_BUY)));
+		}
+		// compare with the current price on the matching line
+		double[] series = seriesFor(c.trades().getFirst());
+		double now = series.length == 0 ? Double.NaN : series[series.length - 1];
+		if (pricedItems > 0 && !Double.isNaN(now)) {
+			double pct = PriceImpact.percent(coins / pricedItems, now);
+			lines.add(Component.literal("now " + CoinFormat.full(now)).withColor(COLOR_DIM)
+					.append(Component.literal(String.format(Locale.ROOT, "  (%+.1f%%)", pct))
+							.withColor(pct >= 0 ? 0xFF55FF55 : 0xFFFF5555)));
+		}
+		g.setComponentTooltipForNextFrame(font, lines, mx, my);
 	}
 
 	private void drawPatchMarkers(GuiGraphicsExtractor g, long tMin, long tMax) {
@@ -739,8 +977,12 @@ public final class GraphScreen extends Screen implements BzScreen {
 		} else {
 			lines.add(Component.literal(when).withColor(COLOR_TEXT));
 		}
-		lines.add(Component.literal("Buy:  ").withColor(COLOR_BUY).append(Component.literal(CoinFormat.full(buys[idx])).withColor(COLOR_TEXT)));
-		lines.add(Component.literal("Sell: ").withColor(COLOR_SELL).append(Component.literal(CoinFormat.full(sells[idx])).withColor(COLOR_TEXT)));
+		String buyRange = rangeText(minBuys, maxBuys, idx);
+		String sellRange = rangeText(minSells, maxSells, idx);
+		lines.add(Component.literal("Buy:  ").withColor(COLOR_BUY).append(Component.literal(CoinFormat.full(buys[idx])).withColor(COLOR_TEXT))
+				.append(Component.literal(buyRange == null ? "" : "  (" + buyRange + ")").withColor(COLOR_DIM)));
+		lines.add(Component.literal("Sell: ").withColor(COLOR_SELL).append(Component.literal(CoinFormat.full(sells[idx])).withColor(COLOR_TEXT))
+				.append(Component.literal(sellRange == null ? "" : "  (" + sellRange + ")").withColor(COLOR_DIM)));
 		lines.add(Component.literal("Volume: ").withColor(COLOR_DIM).append(Component.literal(CoinFormat.compact(vols[idx])).withColor(COLOR_TEXT)));
 		g.setComponentTooltipForNextFrame(font, lines, mx, my);
 	}
