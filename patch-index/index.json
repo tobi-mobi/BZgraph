@@ -7,36 +7,38 @@
       "date": "2026-11-11T20:23:29Z",
       "version": null,
       "title": "[November 11] SkyBlock Patch Notes",
-      "summary": "",
+      "summary": "High-ping mining improvements: leftover break time now carries over to the next block, and partial progress is kept when you look away. Hard Stone in the Crystal Hollows can be mined client-side, so Hard Stone rates go up slightly.",
       "url": "https://hypixel.net/threads/november-11-skyblock-patch-notes.6171561/",
       "autoItems": [
         "HARD_STONE"
       ],
       "items": [],
-      "excludeItems": [],
-      "needsReview": true
+      "excludeItems": []
     },
     {
       "id": "t6167069",
       "date": "2026-10-28T16:23:27Z",
       "version": null,
       "title": "[October 28] SkyBlock Patch Notes",
-      "summary": "",
+      "summary": "Small fixes round-up: Vargul accepts a Bachelor's Rose, Cheesebites cost 160k coins to analyze, and several item interactions were fixed (Fiesta Flask in potion bags, Melon Juice Mixin, Black Hole crafting).",
       "url": "https://hypixel.net/threads/october-28-skyblock-patch-notes.6167069/",
       "autoItems": [
         "BACHELOR_ROSE",
         "LOTUS"
       ],
-      "items": [],
-      "excludeItems": [],
-      "needsReview": true
+      "items": [
+        "CHEESEBITE"
+      ],
+      "excludeItems": [
+        "LOTUS"
+      ]
     },
     {
       "id": "t6165200",
       "date": "2026-10-27T14:35:04Z",
       "version": null,
       "title": "[October 27] Ghost Visitors + Bug Fixes",
-      "summary": "",
+      "summary": "Halloween Garden update: Ghost Visitors appear around Spooky Festivals, ask for mutations and pay in Ectoplasm, which crafts a new budget weapon. Spaceman and Taylor become SPECIAL visitors that need a Bachelor's Rose, and new SkyMart upgrades raise visitor speed and queue size.",
       "url": "https://hypixel.net/threads/october-27-ghost-visitors-bug-fixes.6165200/",
       "autoItems": [
         "BACHELOR_ROSE",
@@ -48,57 +50,56 @@
         "ENCHANTMENT_GREEN_THUMB_5"
       ],
       "items": [],
-      "excludeItems": [],
-      "needsReview": true
+      "excludeItems": []
     },
     {
       "id": "t6163138",
       "date": "2026-10-15T21:56:11Z",
       "version": null,
       "title": "[October 15] SkyBlock Patch Notes",
-      "summary": "",
+      "summary": "Bug fixes: powder no longer resets at the 2 billion cap, and fixes for fusion requirements, Greenhouse Moonflowers, and the Trick or Treat Bag.",
       "url": "https://hypixel.net/threads/october-15-skyblock-patch-notes.6163138/",
       "autoItems": [],
       "items": [],
-      "excludeItems": [],
-      "needsReview": true
+      "excludeItems": []
     },
     {
       "id": "t6162447",
       "date": "2026-10-14T15:49:02Z",
       "version": null,
       "title": "[October 14] SkyBlock Patch Notes",
-      "summary": "",
+      "summary": "Doubled Glossy Gemstone and Refined Mineral drop rates at every Breaking Power, and the Fiesta Flask now boosts both drops and doubles the Scatha and Stoneworm shard effects. The Great Spook runs until November 2.",
       "url": "https://hypixel.net/threads/october-14-skyblock-patch-notes.6162447/",
       "autoItems": [
         "GLOSSY_GEMSTONE",
         "REFINED_MINERAL"
       ],
-      "items": [],
-      "excludeItems": [],
-      "needsReview": true
+      "items": [
+        "SHARD_SCATHA",
+        "SHARD_STONEWORM"
+      ],
+      "excludeItems": []
     },
     {
       "id": "t6162434",
       "date": "2026-10-13T16:00:26Z",
       "version": null,
       "title": "[October 13] SkyBlock Patch Notes",
-      "summary": "",
+      "summary": "Greenhouse and combat fixes, including Plant Yield no longer wrongly boosting mutation items and Ethereal Vine drops. Several Fishing XP sources were corrected; the team notes Glossy Gemstone rates are too low and a fix is coming.",
       "url": "https://hypixel.net/threads/october-13-skyblock-patch-notes.6162434/",
       "autoItems": [
         "ETHEREAL_VINE",
         "GLOSSY_GEMSTONE"
       ],
       "items": [],
-      "excludeItems": [],
-      "needsReview": true
+      "excludeItems": []
     },
     {
       "id": "t6160240",
       "date": "2026-10-06T14:46:30Z",
       "version": "0.27.2",
       "title": "Hypixel SkyBlock 0.27.2 - The Minister Update, Greenhouse QOL, and More!",
-      "summary": "",
+      "summary": "0.27.2: adds all the Minister perks (Precursor Drone mods, a year-long Mining Fiesta with Fiesta Flasks, bait sacks, loadouts, weather and more), Greenhouse decay/watering QOL, and reworked mob levels for slayers. Advanced reforge costs now scale with the reforge stone's rarity.",
       "url": "https://hypixel.net/threads/hypixel-skyblock-0-27-2-the-minister-update-greenhouse-qol-and-more.6160240/",
       "autoItems": [
         "BOOSTER_COOKIE",
@@ -152,67 +153,67 @@
         "WORM_MEMBRANE"
       ],
       "items": [],
-      "excludeItems": [],
-      "needsReview": true
+      "excludeItems": [
+        "ENDER_STONE",
+        "GLACITE"
+      ]
     },
     {
       "id": "t6159925",
       "date": "2026-10-05T14:49:27Z",
       "version": null,
       "title": "[October 5] SkyBlock Patch Notes",
-      "summary": "",
+      "summary": "Fixed mushrooms spreading across the whole Garden, fixed island sky colors, and made switching between SkyBlock servers slightly faster.",
       "url": "https://hypixel.net/threads/october-5-skyblock-patch-notes.6159925/",
       "autoItems": [],
       "items": [],
-      "excludeItems": [],
-      "needsReview": true
+      "excludeItems": []
     },
     {
       "id": "t6158108",
       "date": "2026-09-29T23:24:53Z",
       "version": null,
       "title": "[September 29] SkyBlock Patch Notes",
-      "summary": "",
+      "summary": "Fixed the Lotus Atoll Chapter V collection task and two Tiger pet / Fatal Tempo ferocity bugs.",
       "url": "https://hypixel.net/threads/september-29-skyblock-patch-notes.6158108/",
       "autoItems": [
         "LOTUS"
       ],
       "items": [],
-      "excludeItems": [],
-      "needsReview": true
+      "excludeItems": []
     },
     {
       "id": "t6157749",
       "date": "2026-09-28T16:02:47Z",
       "version": null,
       "title": "Taylor's Autumn 2026 Bundle",
-      "summary": "",
+      "summary": "Seasonal Taylor cosmetics bundle for Gems (skins, runes, dyes, minion skins), available until December 19. Cosmetic only.",
       "url": "https://hypixel.net/threads/taylors-autumn-2026-bundle.6157749/",
       "autoItems": [
         "WEREWOLF_SKIN"
       ],
       "items": [],
-      "excludeItems": [],
-      "needsReview": true
+      "excludeItems": [
+        "WEREWOLF_SKIN"
+      ]
     },
     {
       "id": "t6153488",
       "date": "2026-09-17T23:41:40Z",
       "version": null,
       "title": "[September 17] SkyBlock Patch Notes",
-      "summary": "",
+      "summary": "Golden Dragon Eggs can be bought without limit in the Crystal Hollows, Security Sloth is back, and drill mining progress no longer resets.",
       "url": "https://hypixel.net/threads/september-17-skyblock-patch-notes.6153488/",
       "autoItems": [],
       "items": [],
-      "excludeItems": [],
-      "needsReview": true
+      "excludeItems": []
     },
     {
       "id": "t6148062",
       "date": "2026-09-01T14:08:25Z",
       "version": "0.27.1",
       "title": "Hypixel SkyBlock 0.27.1 - Chocolate Factory Improvements, QOL Changes, and more!",
-      "summary": "",
+      "summary": "0.27.1: Chocolate Factory Rabbit Factions (faction rabbits drop as tradeable items) and Chocobits, doubled MYTHIC/DIVINE rabbit drop rates, plus fishing and combat QOL. Ends with a roadmap for upcoming updates.",
       "url": "https://hypixel.net/threads/hypixel-skyblock-0-27-1-chocolate-factory-improvements-qol-changes-and-more.6148062/",
       "autoItems": [
         "ARACHNE_KEEPER_FRAGMENT",
@@ -249,27 +250,27 @@
         "TARANTULA_WEB"
       ],
       "items": [],
-      "excludeItems": [],
-      "needsReview": true
+      "excludeItems": [
+        "LOTUS"
+      ]
     },
     {
       "id": "t6146157",
       "date": "2026-08-27T15:47:25Z",
       "version": null,
       "title": "[August 27] SkyBlock Patch Notes",
-      "summary": "",
+      "summary": "Anthills now show a hologram saying they can be broken and use Pointed Dripstone instead of Ancient Debris.",
       "url": "https://hypixel.net/threads/august-27-skyblock-patch-notes.6146157/",
       "autoItems": [],
       "items": [],
-      "excludeItems": [],
-      "needsReview": true
+      "excludeItems": []
     },
     {
       "id": "t6142558",
       "date": "2026-08-24T13:42:10Z",
       "version": null,
       "title": "[August 24] SkyBlock Patch Notes",
-      "summary": "",
+      "summary": "Big 0.27 follow-up: all Pots of Honeycomb are now on the Bazaar (single-charge, crafted in batches of 8), Forest's Favor added as a rare Helix Tree drop, a new Sea Brine / Brine Tonic, and a reworked Stealth enchantment. Shellfruit now drops only Cocoa Beans, plus many shard and contest-point changes.",
       "url": "https://hypixel.net/threads/august-24-skyblock-patch-notes.6142558/",
       "autoItems": [
         "BRINE_TONIC",
@@ -295,16 +296,20 @@
         "SUBLIME_SILK",
         "VINESAP"
       ],
-      "items": [],
-      "excludeItems": [],
-      "needsReview": true
+      "items": [
+        "BEHEMOTH_POT_OF_HONEYCOMB",
+        "FUN_SIZED_POT_OF_HONEYCOMB"
+      ],
+      "excludeItems": [
+        "LOTUS"
+      ]
     },
     {
       "id": "t6141710",
       "date": "2026-08-20T13:42:25Z",
       "version": null,
       "title": "[August 20] SkyBlock Patch Notes",
-      "summary": "",
+      "summary": "Greenhouse mutation rebalance: multipliers changed for most crops and mutations, with big nerfs to top earners like Ashwreath and buffs to unused ones like Snoozling. Base crops now decay after 72 hours, and Timestalk and Zombuddy shards were nerfed.",
       "url": "https://hypixel.net/threads/august-20-skyblock-patch-notes.6141710/",
       "autoItems": [
         "ASHWREATH",
@@ -314,16 +319,48 @@
         "TIMESTALK",
         "TURTLELLINI"
       ],
-      "items": [],
-      "excludeItems": [],
-      "needsReview": true
+      "items": [
+        "ALL_IN_ALOE",
+        "BLASTBERRY",
+        "CHEESEBITE",
+        "CHLORONITE",
+        "CHOCOBERRY",
+        "CHOCONUT",
+        "CHORUS_FRUIT",
+        "CINDERSHADE",
+        "COALROOT",
+        "CREAMBLOOM",
+        "DEVOURER",
+        "DUSKBLOOM",
+        "DUSTGRAIN",
+        "FLESHTRAP",
+        "GLOOMGOURD",
+        "GODSEED",
+        "LONELILY",
+        "MAGIC_JELLYBEAN",
+        "NOCTILUME",
+        "PHANTOMLEAF",
+        "PLANTBOY_ADVANCE",
+        "PUFFERCLOUD",
+        "SCOURROOT",
+        "SHADEVINE",
+        "SOGGYBUD",
+        "STARTLEVINE",
+        "STOPLIGHT_PETAL",
+        "THORNSHADE",
+        "THUNDERLING",
+        "VEILSHROOM",
+        "WITHERBLOOM",
+        "ZOMBUD"
+      ],
+      "excludeItems": []
     },
     {
       "id": "t6142057",
       "date": "2026-08-19T21:01:48Z",
       "version": null,
       "title": "[August 19] SkyBlock Patch Notes",
-      "summary": "",
+      "summary": "Hunting XP rework: the Critter Safari becomes the main Hunting XP source (new Uniqueness Score and bigger floor-drop XP), while XP from the Fusion Machine, Ghosts and Glacite Walkers was cut.",
       "url": "https://hypixel.net/threads/august-19-skyblock-patch-notes.6142057/",
       "autoItems": [
         "ESSENCE_FOREST",
@@ -331,27 +368,30 @@
         "LOTUS"
       ],
       "items": [],
-      "excludeItems": [],
-      "needsReview": true
+      "excludeItems": [
+        "GLACITE",
+        "LOTUS"
+      ]
     },
     {
       "id": "t6139315",
       "date": "2026-08-11T22:07:35Z",
       "version": null,
       "title": "[August 11] SkyBlock Patch Notes 2",
-      "summary": "",
+      "summary": "Shard Fusion fixes: special fusions now come before ID fusions, and the Power Dragon shard can no longer be ID-fused (it stays an M7 / Chameleon-shard drop). F7/M7 lava bouncing was retuned for newer Minecraft versions.",
       "url": "https://hypixel.net/threads/august-11-skyblock-patch-notes-2.6139315/",
       "autoItems": [],
-      "items": [],
-      "excludeItems": [],
-      "needsReview": true
+      "items": [
+        "SHARD_POWER_DRAGON"
+      ],
+      "excludeItems": []
     },
     {
       "id": "t6139155",
       "date": "2026-08-11T17:05:50Z",
       "version": null,
       "title": "[August 11] SkyBlock Patch Notes",
-      "summary": "",
+      "summary": "Large 0.27 adjustment patch: Signal Enhancers added to the Bazaar, the Karma enchantment drop chance raised tenfold, and Ruby Veilshroom yields increased (with fewer needed for the Accretion Artifact). Plus many Critter Safari, bestiary and booster changes.",
       "url": "https://hypixel.net/threads/august-11-skyblock-patch-notes.6139155/",
       "autoItems": [
         "ENCHANTMENT_KARMA_1",
@@ -370,35 +410,38 @@
         "SWEEP_BOOSTER_UNCOMMON",
         "VEILSHROOM"
       ],
-      "items": [],
-      "excludeItems": [],
-      "needsReview": true
+      "items": [
+        "SIGNAL_ENHANCER"
+      ],
+      "excludeItems": [
+        "ENDER_STONE"
+      ]
     },
     {
       "id": "t6135988",
       "date": "2026-08-06T21:28:46Z",
       "version": "0.27",
       "title": "[August 6] 0.27 Hotfixes & Healing Revamp Adjustments",
-      "summary": "",
+      "summary": "0.27 hotfixes and Healing Revamp tweaks: fixed Mastiff Armor's heal and swapped its debuff for a Defense-based crit bonus, nerfed Enderman Slayer and Wither Miner damage, and reverted the Refrigerate cost to Volcanic Rock plus North Shards.",
       "url": "https://hypixel.net/threads/august-6-0-27-hotfixes-healing-revamp-adjustments.6135988/",
       "autoItems": [
         "SPOTLITE"
       ],
-      "items": [],
-      "excludeItems": [],
-      "needsReview": true
+      "items": [
+        "VOLCANIC_ROCK"
+      ],
+      "excludeItems": []
     },
     {
       "id": "t6136123",
       "date": "2026-08-05T23:39:32Z",
       "version": null,
       "title": "[August 5] SkyBlock Patch Notes #2",
-      "summary": "",
+      "summary": "Bug fixes for potion effects, the Daily Wishes perk and the Critter Safari. Some glitched blocks from newer Minecraft versions were removed from the game because of exploits.",
       "url": "https://hypixel.net/threads/august-5-skyblock-patch-notes-2.6136123/",
       "autoItems": [],
       "items": [],
-      "excludeItems": [],
-      "needsReview": true
+      "excludeItems": []
     },
     {
       "id": "t6136018",
