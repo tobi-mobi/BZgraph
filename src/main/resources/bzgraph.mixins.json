@@ -1,0 +1,11 @@
+{
+	"required": true,
+	"package": "dev.bzgraph.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+		"AbstractContainerScreenAccessor"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

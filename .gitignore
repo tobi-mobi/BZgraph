@@ -1,0 +1,44 @@
+# Gradle
+.gradle/
+build/
+out/
+classes/
+!gradle/wrapper/gradle-wrapper.jar
+local.properties
+
+# Fabric / Loom dev runs
+run/
+remappedSrc/
+.loom-cache/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Eclipse
+.settings/
+.classpath
+.project
+bin/
+*.launch
+
+# VS Code
+.vscode/
+
+# Python (patch-index script)
+__pycache__/
+*.pyc
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Java crash / profiling dumps
+hs_err_*.log
+replay_*.log
+*.hprof
+*.jfr
