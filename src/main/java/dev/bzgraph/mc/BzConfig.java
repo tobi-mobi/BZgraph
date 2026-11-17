@@ -29,6 +29,18 @@ public final class BzConfig {
 	public String patchIndexUrl = "";
 	/** Show your own bazaar trades (from chat and imported logs) as markers on graphs. */
 	public boolean showTrades = true;
+	/** Shade each point's low-high price range behind the lines (full graph and mini chart). */
+	public boolean showBands = true;
+	/** Small chart left of the bazaar window while you're on an item's page. */
+	public boolean miniChart = true;
+	/** Range shown by the mini chart (1D, 1W, 1M, 1Y, ALL); right-click the mini chart to change it. */
+	public String miniChartRange = "1W";
+	/** Background opacity of the graph and mini chart, 0 (invisible) to 100 (solid). */
+	public int backgroundOpacity = 65;
+	/** Strip under the graph showing who was mayor (and minister) when (M). Data: SkyCofl. */
+	public boolean showMayors = true;
+	/** Flag unusually large price moves and list possible causes (J). */
+	public boolean showJumps = true;
 	/** On startup, import trades from this Minecraft instance's older log files (each file only once). */
 	public boolean importLogsOnStartup = true;
 
@@ -55,6 +67,13 @@ public final class BzConfig {
 	}
 
 	public enum Markers { RELEVANT, ALL, OFF }
+
+	/** {@code rgb} with this config's background opacity (scaled by {@code factor}, e.g. 0.5 for half as opaque). */
+	public int background(int rgb, double factor) {
+		int pct = Math.max(0, Math.min(100, backgroundOpacity));
+		int alpha = (int) Math.round(pct / 100.0 * 255 * factor);
+		return (Math.max(0, Math.min(255, alpha)) << 24) | (rgb & 0xFFFFFF);
+	}
 
 	public Markers patchMarkers() {
 		try {

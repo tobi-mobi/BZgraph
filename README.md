@@ -25,10 +25,25 @@ Client-side Fabric mod for **Minecraft 26.2** that shows an in-game price-histor
     button goes back one step.
   - Hover crosshair with date, buy, sell and volume.
   - A faint band behind each line shows the lowest–highest price within each sample (a whole day on 1M/1Y/ALL),
-    since a daily line can't show moves within the day; your trade markers fall inside it.
+    since a daily line can't show moves within the day; your trade markers fall inside it. Toggle with the
+    **Band** button or `B`.
   - Y-axis with compact coin formatting (`950`, `1.2k`, `3.4M`, `1.5B`), date x-axis.
   - Header with current / min / max for each visible series.
   - Loading spinner, "Refreshing…" badge, and clear errors: offline, rate limited (auto-retry), not a bazaar item, no data.
+- **Why did the price move?**
+  - **Mayor bar** under the graph: who was mayor (and minister) at each point, coloured by type; hover for perks.
+    Toggle with `M`. Mayor data: SkyCofl.
+  - **Jump markers** (yellow warning sign): unusually large moves for that item (at least 8%, and several times its
+    normal wobble) are flagged. Hover lists possible causes, filtered for relevance:
+    - patch notes from up to 5 days before that mention the item (★), plus big updates/release candidates, which shift
+      where players spend their time; small bug-fix posts that don't mention the item are left out;
+    - a *new* mayor or minister whose perks touch this kind of item (e.g. Cole for mining items, Finnegan for farming,
+      Marina for fishing; Derpy/Jerry for everything). An item's area comes from Hypixel's collections list plus
+      keyword rules.
+    Click to read the patch. Toggle with `J`. These are timing matches, not proof.
+- **Mini chart in the bazaar**: on an item's page in Hypixel's bazaar, a small chart (buy/sell lines, band, current
+  prices and change over the range) appears left of the window. Click it for the full graph; right-click to change
+  its range. Turn it off with `"miniChart": false`.
 - **Patch notes on the graph**: markers at SkyBlock patch-note release dates. Hover for title, date, what the patch
   changed *for this item* (when the index has a note for it), the general summary, and the median price before vs.
   after the patch; click for details. "Patches: Item / All / Off" button (only patches that
@@ -59,7 +74,13 @@ Client-side Fabric mod for **Minecraft 26.2** that shows an in-game price-histor
   "patchMarkers": "RELEVANT",
   "patchIndexUrl": "",
   "showTrades": true,
-  "importLogsOnStartup": true
+  "importLogsOnStartup": true,
+  "showBands": true,
+  "miniChart": true,
+  "miniChartRange": "1W",
+  "backgroundOpacity": 65,
+  "showMayors": true,
+  "showJumps": true
 }
 ```
 

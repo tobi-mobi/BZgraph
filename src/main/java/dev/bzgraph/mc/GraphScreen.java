@@ -5,6 +5,9 @@ import dev.bzgraph.core.CachedHistory;
 import dev.bzgraph.core.CoinFormat;
 import dev.bzgraph.core.Downsampler;
 import dev.bzgraph.core.HistoryHandle;
+import dev.bzgraph.core.JumpCauses;
+import dev.bzgraph.core.JumpDetector;
+import dev.bzgraph.core.MayorHistory;
 import dev.bzgraph.core.PatchNote;
 import dev.bzgraph.core.PriceImpact;
 import dev.bzgraph.core.PricePoint;
@@ -95,12 +98,29 @@ public final class GraphScreen extends Screen implements BzScreen {
 	private Button sellButton;
 	private Button patchButton;
 	private Button tradesButton;
+	private Button bandButton;
 
 	/** Your trades merged per screen column and side, as drawn in the last frame. */
 	private record TradeCluster(Trade.Side side, int x, int y, List<Trade> trades) {
 	}
 
 	private List<TradeCluster> tradeClusters = List.of();
+
+	private static final int MAYOR_BAR_H = 10;
+	private static final int MAX_JUMPS = 8;
+	private static final int COLOR_JUMP = 0xFFFFD43B;
+
+	/** Mayor-bar segments and jump markers drawn in the last frame (for hover/click). */
+	private record MayorSegment(int x0, int x1, MayorHistory.Term term) {
+	}
+
+	private record JumpMarker(int x, int y, JumpDetector.Jump jump) {
+	}
+
+	private List<MayorSegment> mayorSegments = List.of();
+	private List<JumpMarker> jumpMarkers = List.of();
+	private List<JumpDetector.Jump> jumps = List.of();
+	private int mayorBarY = -1;
 	private Button backButton;
 	private Button forwardButton;
 
@@ -169,7 +189,7 @@ public final class GraphScreen extends Screen implements BzScreen {
 	@Override
 	protected void init() {
 		// ~3/4 of the screen, but never so small the buttons overlap or so big it feels full-screen
-		int pw = Math.min(width - 16, clamp(Math.round(width * 0.72f), 460, 600));
+		int pw = Math.min(width - 16, clamp(Math.round(width * 0.72f), 470, 600));
 		int ph = Math.min(height - 16, clamp(Math.round(height * 0.78f), 240, 330));
 		px0 = (width - pw) / 2;
 		py0 = (height - ph) / 2;
@@ -180,7 +200,8 @@ public final class GraphScreen extends Screen implements BzScreen {
 		gx0 = px0 + PAD + Y_AXIS_W;
 		gx1 = px1 - PAD - 2;
 		gy0 = buttonsY + 30;
-		gy1 = py1 - 26;
+		gy1 = py1 - 26 - (BzGraphClient.get().config().showMayors ? MAYOR_BAR_H + 2 : 0);
+		mayorBarY = BzGraphClient.get().config().showMayors && productId != null ? gy1 + 2 : -1;
 
 		rangeButtons.clear();
 		int x = px0 + PAD;
@@ -191,19 +212,26 @@ public final class GraphScreen extends Screen implements BzScreen {
 			rangeButtons.add(addRenderableWidget(b));
 			x += 34;
 		}
+		// right to left: Sell, Buy, Band, Trades, Patches
+		int bx = px1 - PAD;
 		sellButton = addRenderableWidget(Button.builder(Component.empty(), b -> toggle(false))
-				.bounds(px1 - PAD - 56, buttonsY, 56, 20).build());
+				.bounds(bx -= 44, buttonsY, 44, 20).build());
 		buyButton = addRenderableWidget(Button.builder(Component.empty(), b -> toggle(true))
-				.bounds(px1 - PAD - 56 - 2 - 56, buttonsY, 56, 20).build());
-		patchButton = addRenderableWidget(Button.builder(Component.empty(), b -> cycleMarkers())
-				.bounds(px1 - PAD - 56 - 2 - 56 - 2 - 84, buttonsY, 84, 20).build());
+				.bounds(bx -= 2 + 44, buttonsY, 44, 20).build());
+		bandButton = addRenderableWidget(Button.builder(Component.empty(), b -> toggleBands())
+				.bounds(bx -= 2 + 48, buttonsY, 48, 20).build());
+		bandButton.setTooltip(Tooltip.create(Component.literal("Shade the lowest-highest price within each point "
+				+ "(a whole day on 1M/1Y/ALL) behind the lines (B)")));
 		tradesButton = addRenderableWidget(Button.builder(Component.empty(), b -> toggleTrades())
-				.bounds(px1 - PAD - 56 - 2 - 56 - 2 - 84 - 2 - 58, buttonsY, 58, 20).build());
+				.bounds(bx -= 2 + 56, buttonsY, 56, 20).build());
+		patchButton = addRenderableWidget(Button.builder(Component.empty(), b -> cycleMarkers())
+				.bounds(bx -= 2 + 84, buttonsY, 84, 20).build());
 		tradesButton.setTooltip(Tooltip.create(Component.literal("Your own bazaar trades on this item: "
 				+ "\u25bc sells, \u25b2 buys. Recorded from chat and imported from your log files.")));
 		updateToggleLabels();
 		boolean hasProduct = productId != null;
-		buyButton.active = sellButton.active = patchButton.active = tradesButton.active = hasProduct;
+		buyButton.active = sellButton.active = patchButton.active = tradesButton.active = bandButton.active = hasProduct;
+		if (hasProduct) BzGraphClient.get().mayors().ensure();
 		if (hasProduct) {
 			Set<String> products = BzGraphClient.get().products();
 			if (products != null) BzGraphClient.get().trades().ensureNames(products);
@@ -257,6 +285,13 @@ public final class GraphScreen extends Screen implements BzScreen {
 		cfg.save();
 	}
 
+	private void toggleBands() {
+		BzConfig cfg = BzGraphClient.get().config();
+		cfg.showBands = !cfg.showBands;
+		cfg.save();
+		updateToggleLabels();
+	}
+
 	private void toggleTrades() {
 		BzConfig cfg = BzGraphClient.get().config();
 		cfg.showTrades = !cfg.showTrades;
@@ -281,7 +316,9 @@ public final class GraphScreen extends Screen implements BzScreen {
 		};
 		patchButton.setMessage(Component.literal(label).withColor(m == BzConfig.Markers.OFF ? COLOR_DIM : COLOR_PATCH));
 		boolean trades = BzGraphClient.get().config().showTrades;
-		tradesButton.setMessage(Component.literal(trades ? "Trades: On" : "Trades: Off").withColor(trades ? COLOR_TEXT : COLOR_DIM));
+		tradesButton.setMessage(Component.literal((trades ? "■ " : "□ ") + "Trades").withColor(trades ? COLOR_TEXT : COLOR_DIM));
+		boolean bands = BzGraphClient.get().config().showBands;
+		bandButton.setMessage(Component.literal((bands ? "■ " : "□ ") + "Band").withColor(bands ? COLOR_TEXT : COLOR_DIM));
 		buyButton.setMessage(Component.literal((showBuy ? "■ " : "□ ") + "Buy").withColor(showBuy ? COLOR_BUY : COLOR_DIM));
 		sellButton.setMessage(Component.literal((showSell ? "■ " : "□ ") + "Sell").withColor(showSell ? COLOR_SELL : COLOR_DIM));
 	}
@@ -305,6 +342,23 @@ public final class GraphScreen extends Screen implements BzScreen {
 		}
 		if (productId != null && k >= GLFW.GLFW_KEY_1 && k <= GLFW.GLFW_KEY_5) {
 			selectRange(TimeRange.values()[k - GLFW.GLFW_KEY_1]);
+			return true;
+		}
+		if (productId != null && k == GLFW.GLFW_KEY_M) {
+			BzConfig cfg = BzGraphClient.get().config();
+			cfg.showMayors = !cfg.showMayors;
+			cfg.save();
+			rebuildWidgets(); // the plot height changes
+			return true;
+		}
+		if (productId != null && k == GLFW.GLFW_KEY_J) {
+			BzConfig cfg = BzGraphClient.get().config();
+			cfg.showJumps = !cfg.showJumps;
+			cfg.save();
+			return true;
+		}
+		if (productId != null && k == GLFW.GLFW_KEY_B) {
+			toggleBands();
 			return true;
 		}
 		if (productId != null && k == GLFW.GLFW_KEY_P) {
@@ -331,6 +385,17 @@ public final class GraphScreen extends Screen implements BzScreen {
 		if (event.button() == 0 && overAttribution(event.x(), event.y())) {
 			ConfirmLinkScreen.confirmLinkNow(this, BzGraphClient.COFL_URL);
 			return true;
+		}
+		JumpMarker jm = event.button() == 0 && hoveredCluster(event.x(), event.y()) == null ? hoveredJump(event.x(), event.y()) : null;
+		if (jm != null) {
+			JumpCauses.Explanation e = explain(jm.jump());
+			if (e.patches().size() == 1) {
+				minecraft.gui.setScreen(new PatchDetailScreen(this, nav, e.patches().getFirst(), productId, historyPoints(), range));
+				return true;
+			} else if (e.patches().size() > 1) {
+				openPatchList(e.patches());
+				return true;
+			}
 		}
 		Cluster c = event.button() == 0 ? hoveredCluster(event.x(), event.y()) : null;
 		if (c != null) {
@@ -381,12 +446,13 @@ public final class GraphScreen extends Screen implements BzScreen {
 
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
-		g.fill(px0, py0, px1, py1, COLOR_PANEL_BG);
+		BzConfig cfg = BzGraphClient.get().config();
+		g.fill(px0, py0, px1, py1, cfg.background(COLOR_PANEL_BG, 1.0));
 		g.horizontalLine(px0, px1 - 1, py0, COLOR_PANEL_BORDER);
 		g.horizontalLine(px0, px1 - 1, py1 - 1, COLOR_PANEL_BORDER);
 		g.verticalLine(px0, py0, py1 - 1, COLOR_PANEL_BORDER);
 		g.verticalLine(px1 - 1, py0, py1 - 1, COLOR_PANEL_BORDER);
-		g.fill(gx0, gy0, gx1 + 1, gy1, COLOR_PANEL);
+		g.fill(gx0, gy0, gx1 + 1, gy1, cfg.background(COLOR_PANEL, 0.5));
 		drawHeader(g);
 		drawAttribution(g, mouseX, mouseY);
 
@@ -463,7 +529,7 @@ public final class GraphScreen extends Screen implements BzScreen {
 		boolean hover = overAttribution(mx, my);
 		Component c = Component.literal(ATTRIBUTION).withStyle(s -> s.withUnderlined(hover));
 		g.text(font, c, attrX, attrY, hover ? COLOR_TEXT : COLOR_LINK);
-		String hint = productId == null ? "" : "1-5 range · P patches · R refresh";
+		String hint = productId == null ? "" : "1-5 range · P patches · M mayors · J jumps · B band";
 		int hx = px1 - PAD - font.width(hint);
 		if (hx > attrX + attrW + 8) g.text(font, hint, hx, attrY, 0xFF666666);
 	}
@@ -557,6 +623,11 @@ public final class GraphScreen extends Screen implements BzScreen {
 			maxSells[i] = p.maxSell();
 		}
 		if (addLive) liveIndex = n - 1;
+		double[] mid = new double[n];
+		for (int i = 0; i < n; i++) {
+			mid[i] = Double.isNaN(buys[i]) ? sells[i] : Double.isNaN(sells[i]) ? buys[i] : (buys[i] + sells[i]) / 2;
+		}
+		jumps = JumpDetector.detect(times, mid, MAX_JUMPS);
 	}
 
 	private void drawGraph(GuiGraphicsExtractor g, int mx, int my) {
@@ -605,29 +676,212 @@ public final class GraphScreen extends Screen implements BzScreen {
 			int w = font.width(s);
 			int tx = Math.max(gx0 - w / 2, Math.min(x - w / 2, gx1 - w));
 			g.verticalLine(x, gy0, gy1, COLOR_GRID);
-			g.text(font, s, tx, gy1 + 3, COLOR_DIM);
+			g.text(font, s, tx, gy1 + 3 + (mayorBarY >= 0 ? MAYOR_BAR_H + 2 : 0), COLOR_DIM);
 		}
 		g.verticalLine(gx0, gy0, gy1, COLOR_AXIS);
 		g.horizontalLine(gx0, gx1, gy1, COLOR_AXIS);
 
 		int w = gx1 - gx0 + 1;
 		// Day (bucket) low-high bands first, so the lines and markers sit on top of them.
-		if (showSell) drawBand(g, minSells, maxSells, tMin, tMax, w, lo, hi, COLOR_SELL);
-		if (showBuy) drawBand(g, minBuys, maxBuys, tMin, tMax, w, lo, hi, COLOR_BUY);
+		boolean bands = BzGraphClient.get().config().showBands;
+		if (bands && showSell) drawBand(g, minSells, maxSells, tMin, tMax, w, lo, hi, COLOR_SELL);
+		if (bands && showBuy) drawBand(g, minBuys, maxBuys, tMin, tMax, w, lo, hi, COLOR_BUY);
 		if (showSell) drawSeries(g, Downsampler.columns(times, sells, tMin, tMax, w), lo, hi, COLOR_SELL);
 		if (showBuy) drawSeries(g, Downsampler.columns(times, buys, tMin, tMax, w), lo, hi, COLOR_BUY);
 
 		drawLiveMarker(g, tMin, tMax, lo, hi);
 		drawTradeMarkers(g, tMin, tMax, lo, hi);
+		drawJumpMarkers(g, tMin, tMax, lo, hi);
 		drawPatchMarkers(g, tMin, tMax);
+		drawMayorBar(g, tMin, tMax);
 		Cluster hc = hoveredCluster(mx, my);
-		TradeCluster tc = hc == null ? hoveredTrade(mx, my) : null;
+		JumpMarker jm = hc == null ? hoveredJump(mx, my) : null;
+		TradeCluster tc = hc == null && jm == null ? hoveredTrade(mx, my) : null;
+		MayorSegment ms = hc == null && jm == null && tc == null ? hoveredMayor(mx, my) : null;
 		if (hc != null) {
 			drawPatchTooltip(g, hc, mx, my);
+		} else if (jm != null) {
+			drawJumpTooltip(g, jm, mx, my);
 		} else if (tc != null) {
 			drawTradeTooltip(g, tc, mx, my);
+		} else if (ms != null) {
+			drawMayorTooltip(g, ms, mx, my);
 		} else if (mx >= gx0 && mx <= gx1 && my >= gy0 && my <= gy1) {
 			drawCrosshair(g, mx, my, tMin, tMax, lo, hi);
+		}
+	}
+
+	// ---------------------------------------------------------------- mayors
+
+	/** Mayor colour by Hypixel's category key; unknown/special mayors get a stable colour from their name. */
+	private static int mayorColor(MayorHistory.Term t) {
+		return colorFor(t.category(), t.mayor());
+	}
+
+	private static int colorFor(String category, String name) {
+		return switch (category == null ? "" : category) {
+			case "mining" -> 0xFFC78B1E;
+			case "farming" -> 0xFF3E9E3E;
+			case "dungeons" -> 0xFFB03A3A;
+			case "fishing" -> 0xFF2E8FA8;
+			case "events" -> 0xFFA845A8;
+			case "economist" -> 0xFFB8A23A;
+			case "slayer" -> 0xFF8A2A2A;
+			case "pets" -> 0xFF5E8A3A;
+			case "skills" -> 0xFF4A5FC0;
+			default -> 0xFF000000 | (Math.abs(String.valueOf(name).hashCode()) & 0x7F7F7F) | 0x303030;
+		};
+	}
+
+	private int xForTime(long ms, long tMin, long tMax) {
+		return gx0 + (int) Math.round((double) (ms - tMin) / (tMax - tMin) * (gx1 - gx0));
+	}
+
+	private void drawMayorBar(GuiGraphicsExtractor g, long tMin, long tMax) {
+		mayorSegments = List.of();
+		if (mayorBarY < 0) return;
+		MayorHistory mayors = BzGraphClient.get().mayors().current();
+		List<MayorSegment> segs = new ArrayList<>();
+		for (MayorHistory.Term t : mayors.between(Instant.ofEpochMilli(tMin), Instant.ofEpochMilli(tMax))) {
+			int a = Math.max(gx0, xForTime(t.start().toEpochMilli(), tMin, tMax));
+			int b = Math.min(gx1 + 1, xForTime(t.end().toEpochMilli(), tMin, tMax));
+			if (b <= a) b = a + 1;
+			segs.add(new MayorSegment(a, b, t));
+			g.fill(a, mayorBarY, b, mayorBarY + MAYOR_BAR_H, mayorColor(t));
+			g.fill(a, mayorBarY, a + 1, mayorBarY + MAYOR_BAR_H, 0x80000000); // term boundary
+			String name = t.mayor();
+			if (b - a > font.width(name) + 4) g.text(font, name, a + 2, mayorBarY + 1, 0xFFFFFFFF);
+		}
+		if (segs.isEmpty()) {
+			String msg = mayors.terms().isEmpty() ? "mayor history loading…" : "no mayor data for this time";
+			g.text(font, msg, gx0 + 2, mayorBarY + 1, 0xFF555555);
+		}
+		mayorSegments = segs;
+	}
+
+	private MayorSegment hoveredMayor(double mx, double my) {
+		if (mayorBarY < 0 || my < mayorBarY || my >= mayorBarY + MAYOR_BAR_H) return null;
+		for (MayorSegment s : mayorSegments) if (mx >= s.x0() && mx < s.x1()) return s;
+		return null;
+	}
+
+	private void drawMayorTooltip(GuiGraphicsExtractor g, MayorSegment s, int mx, int my) {
+		MayorHistory.Term t = s.term();
+		ZoneId zone = ZoneId.systemDefault();
+		List<Component> lines = new ArrayList<>();
+		lines.add(Component.literal("Mayor " + t.mayor()).withColor(mayorColor(t) | 0xFF404040)
+				.append(Component.literal(t.category().isEmpty() ? "" : "  " + t.category()).withColor(COLOR_DIM)));
+		lines.add(Component.literal(FMT_TRADE.format(t.start().atZone(zone)) + " – " + FMT_TRADE.format(t.end().atZone(zone))).withColor(COLOR_DIM));
+		for (String perk : t.perks()) lines.add(Component.literal("• " + perk).withColor(COLOR_TEXT));
+		if (t.minister() != null) {
+			lines.add(Component.literal("Minister " + t.minister()).withColor(0xFFCCCCCC)
+					.append(Component.literal(t.ministerPerk() == null ? "" : ": " + t.ministerPerk()).withColor(COLOR_TEXT)));
+		}
+		lines.add(Component.literal("Mayor data: SkyCofl").withColor(0xFF666666));
+		g.setComponentTooltipForNextFrame(font, lines, mx, my);
+	}
+
+	// ---------------------------------------------------------------- price jumps
+
+	private JumpCauses.Explanation explain(JumpDetector.Jump j) {
+		BzGraphClient c = BzGraphClient.get();
+		return JumpCauses.explain(j.time(), productId, c.itemAreas().of(productId), c.patches().current(), c.mayors().current());
+	}
+
+	private void drawJumpMarkers(GuiGraphicsExtractor g, long tMin, long tMax, double lo, double hi) {
+		jumpMarkers = List.of();
+		if (!BzGraphClient.get().config().showJumps || jumps.isEmpty()) return;
+		List<JumpMarker> out = new ArrayList<>();
+		for (JumpDetector.Jump j : jumps) {
+			long ms = j.time().toEpochMilli();
+			if (ms < tMin || ms > tMax) continue;
+			int x = xForTime(ms, tMin, tMax);
+			double price = j.fromPrice();
+			int y = Double.isNaN(price) ? gy0 + 8 : Math.max(gy0 + 6, Math.min(gy1 - 6, yFor(price, lo, hi)));
+			// warning triangle above the line, with a thin stem down to where the move starts
+			int tip = Math.max(gy0 + 1, y - 17);
+			if (tip + 9 < y) g.verticalLine(x, tip + 9, y - 1, 0x80FFD43B);
+			g.fill(x - 1, y - 1, x + 2, y + 2, 0xFF000000);
+			g.fill(x, y, x + 1, y + 1, COLOR_JUMP);
+			warningTriangle(g, x, tip);
+			out.add(new JumpMarker(x, tip + 4, j));
+		}
+		jumpMarkers = out;
+	}
+
+	/** 15x8 pixel-art warning sign: black outline, yellow fill, black "!" (drawn with fills for crisp pixels). */
+	private static void warningTriangle(GuiGraphicsExtractor g, int x, int tip) {
+		for (int r = 0; r < 8; r++) g.fill(x - r, tip + r, x + r + 1, tip + r + 1, 0xFF000000);
+		for (int r = 2; r < 7; r++) g.fill(x - (r - 1), tip + r, x + r, tip + r + 1, COLOR_JUMP);
+		g.fill(x, tip + 3, x + 1, tip + 5, 0xFF000000); // stem of "!"
+		g.fill(x, tip + 6, x + 1, tip + 7, 0xFF000000); // dot
+	}
+
+	private JumpMarker hoveredJump(double mx, double my) {
+		for (JumpMarker m : jumpMarkers) if (Math.abs(mx - m.x()) <= 7 && Math.abs(my - m.y()) <= 6) return m;
+		return null;
+	}
+
+	private void drawJumpTooltip(GuiGraphicsExtractor g, JumpMarker m, int mx, int my) {
+		JumpDetector.Jump j = m.jump();
+		JumpCauses.Explanation e = explain(j);
+		ZoneId zone = ZoneId.systemDefault();
+		int wrap = Math.max(170, Math.min(270, width / 3));
+		List<FormattedCharSequence> lines = new ArrayList<>();
+		lines.add(Component.literal(String.format(Locale.ROOT, "Price %+.0f%%", j.pct())).withColor(j.pct() >= 0 ? 0xFF55FF55 : 0xFFFF5555)
+				.append(Component.literal("  from " + FMT_TRADE.format(j.time().atZone(zone))).withColor(COLOR_DIM)).getVisualOrderText());
+		lines.add(Component.literal(CoinFormat.compact(j.fromPrice()) + " -> " + CoinFormat.compact(j.toPrice())).withColor(COLOR_TEXT).getVisualOrderText());
+		if (e.isEmpty()) {
+			lines.add(Component.literal("No related patch note or mayor change nearby.").withColor(COLOR_DIM).getVisualOrderText());
+			addMayorThen(lines, e, wrap);
+		} else {
+			lines.add(Component.literal("Possible causes:").withColor(COLOR_JUMP).getVisualOrderText());
+			for (PatchNote p : e.patches()) {
+				boolean item = p.affects(productId);
+				String head = PatchDetailScreen.DATE.format(p.date().atZone(zone)) + "  " + p.title();
+				for (FormattedCharSequence l : font.split(Component.literal((item ? "★ " : "• ") + head)
+						.withColor(item ? COLOR_PATCH : 0xFFDDDDDD), wrap)) lines.add(l);
+				String note = p.noteFor(productId);
+				if (note != null) {
+					List<FormattedCharSequence> nl = font.split(Component.literal("   " + note).withColor(0xFFFFBBFF), wrap);
+					lines.addAll(nl.subList(0, Math.min(3, nl.size())));
+				}
+			}
+			if (e.change() != null) {
+				MayorHistory.Term t = e.change().term();
+				String when = "  (" + PatchDetailScreen.DATE.format(t.start().atZone(zone)) + ")";
+				if (e.change().mayorRelevant()) {
+					String perks = t.perks().isEmpty() ? "" : ": " + String.join(", ", t.perks());
+					for (FormattedCharSequence l : font.split(Component.literal("• New mayor " + t.mayor() + perks + when)
+							.withColor(mayorColor(t) | 0xFF404040), wrap)) lines.add(l);
+				}
+				if (e.change().ministerRelevant()) {
+					String perk = t.ministerPerk() == null ? "" : ": " + t.ministerPerk();
+					for (FormattedCharSequence l : font.split(Component.literal("• New minister " + t.minister() + perk + when)
+							.withColor(colorFor(t.ministerCategory(), t.minister()) | 0xFF404040), wrap)) lines.add(l);
+				}
+			} else {
+				addMayorThen(lines, e, wrap);
+			}
+			lines.add(Component.literal("Timing matches, not proof." + (e.patches().isEmpty() ? "" : "  Click to read."))
+					.withColor(0xFF777777).getVisualOrderText());
+		}
+		g.setTooltipForNextFrame(font, lines, mx, my);
+	}
+
+	/** "In office then: ..." when the sitting mayor/minister is relevant to this item (context, not a change). */
+	private void addMayorThen(List<FormattedCharSequence> lines, JumpCauses.Explanation e, int wrap) {
+		MayorHistory.Term t = e.mayorAtTime();
+		if (t == null) return;
+		Set<dev.bzgraph.core.ItemAreas.Area> areas = BzGraphClient.get().itemAreas().of(productId);
+		List<String> parts = new ArrayList<>();
+		if (dev.bzgraph.core.ItemAreas.relevant(t.category(), areas)) parts.add("mayor " + t.mayor());
+		if (t.minister() != null && dev.bzgraph.core.ItemAreas.relevant(t.ministerCategory(), areas)) {
+			parts.add("minister " + t.minister() + (t.ministerPerk() == null ? "" : " (" + t.ministerPerk() + ")"));
+		}
+		if (parts.isEmpty()) return;
+		for (FormattedCharSequence l : font.split(Component.literal("In office then: " + String.join(", ", parts)).withColor(COLOR_DIM), wrap)) {
+			lines.add(l);
 		}
 	}
 

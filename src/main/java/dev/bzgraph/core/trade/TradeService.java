@@ -53,6 +53,11 @@ public final class TradeService {
 		return names != null;
 	}
 
+	/** The chat-name lookup, or null until loaded. */
+	public ProductNames names() {
+		return names;
+	}
+
 	private synchronized TradeLedger ledger(String account) {
 		return ledgers.computeIfAbsent(account.toLowerCase(java.util.Locale.ROOT), k -> {
 			TradeLedger l = new TradeLedger();

@@ -4,12 +4,16 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import dev.bzgraph.core.ApiClient;
 import dev.bzgraph.core.DiskCache;
+import dev.bzgraph.core.CachedText;
 import dev.bzgraph.core.HistoryRepository;
+import dev.bzgraph.core.ItemAreas;
+import dev.bzgraph.core.MayorRepository;
 import dev.bzgraph.core.PatchIndexRepository;
 import dev.bzgraph.core.RequestQueue;
 import dev.bzgraph.mc.BzConfig;
 import dev.bzgraph.mc.GraphScreen;
 import dev.bzgraph.mc.ItemReader;
+import dev.bzgraph.mc.BazaarMiniChart;
 import dev.bzgraph.mc.BzScreen;
 import dev.bzgraph.mc.GraphNav;
 import dev.bzgraph.mc.PatchListScreen;
@@ -46,6 +50,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.net.URI;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -66,6 +71,10 @@ public final class BzGraphClient implements ClientModInitializer {
 	private ApiClient api;
 	private HistoryRepository repository;
 	private TradeTracker trades;
+	private MayorRepository mayors;
+	private CachedText collections;
+	private volatile ItemAreas itemAreas = ItemAreas.keywordsOnly();
+	private final AtomicBoolean areasLoading = new AtomicBoolean();
 	private PatchIndexRepository patches;
 	private String defaultPatchIndexUrl = "";
 	private final AtomicBoolean patchesStarted = new AtomicBoolean();
@@ -97,6 +106,10 @@ public final class BzGraphClient implements ClientModInitializer {
 		});
 		repository = new HistoryRepository(api, api, new DiskCache(dir.resolve("cache")), 64, io, Instant::now,
 				t -> LOGGER.warn("BZgraph background error", t));
+
+		mayors = new MayorRepository(api::getText, dir.resolve("cache").resolve("mayors.json"), io, Instant::now,
+				msg -> LOGGER.warn(msg));
+		collections = new CachedText(api::getText, dir.resolve("cache").resolve("collections.json"), Duration.ofDays(7), io);
 
 		// Your own bazaar trades: from chat (live) and from old log files (once per file).
 		trades = new TradeTracker(dir, api, io);
@@ -135,6 +148,9 @@ public final class BzGraphClient implements ClientModInitializer {
 				});
 			}
 		});
+
+		// Small chart next to Hypixel's bazaar window on a product page.
+		BazaarMiniChart.install();
 
 		ClientTickEvents.END_CLIENT_TICK.register(this::onTick);
 		ClientCommandRegistrationCallback.EVENT.register((dispatcher, ctx) -> dispatcher.register(
@@ -182,6 +198,29 @@ public final class BzGraphClient implements ClientModInitializer {
 	/** Bazaar product IDs, or null until loaded. */
 	public Set<String> products() {
 		return products;
+	}
+
+	/** Which part of the game each item belongs to (keyword rules until Hypixel's collections list is loaded). */
+	public ItemAreas itemAreas() {
+		if (areasLoading.compareAndSet(false, true)) {
+			collections.get(URI.create("https://api.hypixel.net/v2/resources/skyblock/collections")).whenComplete((body, err) -> {
+				if (err != null) {
+					LOGGER.warn("Could not load collections list: {}", err.toString());
+					areasLoading.set(false);
+					return;
+				}
+				try {
+					itemAreas = ItemAreas.fromCollections(body);
+				} catch (RuntimeException e) {
+					LOGGER.warn("Collections list was invalid: {}", e.toString());
+				}
+			});
+		}
+		return itemAreas;
+	}
+
+	public MayorRepository mayors() {
+		return mayors;
 	}
 
 	public TradeTracker trades() {
