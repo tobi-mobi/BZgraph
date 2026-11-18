@@ -45,6 +45,12 @@ public final class BzConfig {
 	public String purseRange = "1W";
 	/** How compared items are drawn: PERCENT (change from the start of the range), PRICE, or RATIO (two items). */
 	public String compareMode = "PERCENT";
+	/** Which price compared items are drawn with: BUY or SELL (one line per item). */
+	public String compareSide = "BUY";
+	/** Draw both the buy and the sell line of every compared item (sell lines faded). */
+	public boolean compareBoth = false;
+	/** The marker/shortcut overview was shown once on the first graph opened. */
+	public boolean seenHelp = false;
 	/** On startup, import trades from this Minecraft instance's older log files (each file only once). */
 	public boolean importLogsOnStartup = true;
 

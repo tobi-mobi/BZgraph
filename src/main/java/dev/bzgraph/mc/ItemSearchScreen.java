@@ -16,26 +16,44 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.function.Consumer;
 
-/** Pick a bazaar item to add to a graph for comparison (search by name or product ID). */
-public final class CompareSearchScreen extends Screen implements BzScreen {
+/** Search bazaar items by name or product ID: to open a graph, or to add an item to one for comparison. */
+public final class ItemSearchScreen extends Screen implements BzScreen {
 	private static final int ROW_H = 12;
 	private static final int MAX_ROWS = 200;
 
+	private final String heading;
 	private final Screen back;
 	private final Screen root;
 	private final Set<String> exclude;
 	private final Consumer<String> onPick;
+	/** Compare search: go back to the graph after picking. Item search: {@code onPick} opens the graph itself. */
+	private final boolean returnAfterPick;
 	private EditBox search;
 	private List<String[]> rows = List.of(); // [id, name]
 	private double scroll;
 	private int listX0, listX1, listY0, listY1;
 
-	public CompareSearchScreen(Screen back, Screen root, Set<String> exclude, Consumer<String> onPick) {
-		super(Component.literal("Compare with..."));
+	private ItemSearchScreen(String heading, Screen back, Screen root, Set<String> exclude, Consumer<String> onPick, boolean returnAfterPick) {
+		super(Component.literal(heading));
+		this.heading = heading;
 		this.back = back;
 		this.root = root;
 		this.exclude = exclude;
 		this.onPick = onPick;
+		this.returnAfterPick = returnAfterPick;
+	}
+
+	/** Pick an item to add to the graph {@code back}. */
+	public static ItemSearchScreen compare(Screen back, Screen root, Set<String> exclude, Consumer<String> onPick) {
+		return new ItemSearchScreen("Add an item to compare", back, root, exclude, onPick, true);
+	}
+
+	/** Pick an item to open its graph; closing returns to {@code parent} (null = the game). */
+	public static ItemSearchScreen openGraph(Screen parent) {
+		return new ItemSearchScreen("Search bazaar items", parent, parent, Set.of(), id -> {
+			BzGraphClient c = BzGraphClient.get();
+			net.minecraft.client.Minecraft.getInstance().gui.setScreen(new GraphScreen(parent, id, c.trades().displayName(id)));
+		}, false);
 	}
 
 	@Override
@@ -50,7 +68,7 @@ public final class CompareSearchScreen extends Screen implements BzScreen {
 		search.setResponder(s -> rebuild());
 		listY0 = 52;
 		listY1 = height - 36;
-		addRenderableWidget(Button.builder(Component.literal("Back"), b -> minecraft.gui.setScreen(back))
+		addRenderableWidget(Button.builder(Component.literal(back == null ? "Close" : "Back"), b -> minecraft.gui.setScreen(back))
 				.bounds(width / 2 - 75, height - 28, 150, 20).build());
 		setInitialFocus(search);
 		rebuild();
@@ -86,7 +104,7 @@ public final class CompareSearchScreen extends Screen implements BzScreen {
 
 	private void pick(String id) {
 		onPick.accept(id);
-		minecraft.gui.setScreen(back);
+		if (returnAfterPick) minecraft.gui.setScreen(back);
 	}
 
 	@Override
@@ -137,7 +155,7 @@ public final class CompareSearchScreen extends Screen implements BzScreen {
 
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
-		g.centeredText(font, "Add an item to compare", width / 2, 10, 0xFFFFFFFF);
+		g.centeredText(font, heading, width / 2, 10, 0xFFFFFFFF);
 		g.fill(listX0 - 2, listY0 - 2, listX1 + 2, listY1 + 2, BzGraphClient.get().config().background(0x000000, 0.9));
 		if (rows.isEmpty()) {
 			String msg = BzGraphClient.get().products() == null ? "Loading bazaar items…" : "No matching bazaar item";

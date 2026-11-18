@@ -11,6 +11,7 @@ import dev.bzgraph.core.RequestQueue;
 import dev.bzgraph.mc.BzConfig;
 import dev.bzgraph.mc.GraphScreen;
 import dev.bzgraph.mc.ItemReader;
+import dev.bzgraph.mc.ItemSearchScreen;
 import dev.bzgraph.mc.BazaarMiniChart;
 import dev.bzgraph.mc.BzScreen;
 import dev.bzgraph.mc.GraphNav;
@@ -210,8 +211,11 @@ public final class BzGraphClient implements ClientModInitializer {
 								})
 								.executes(c -> runCommand(c.getSource(), StringArgumentType.getString(c, "item"))))
 						.executes(c -> {
-							c.getSource().sendFeedback(Component.literal("Usage: /bzgraph <ITEM_ID>  (or hover an item and press "
-									+ openKey.getTranslatedKeyMessage().getString() + ")"));
+							if (!isActive()) {
+								c.getSource().sendError(Component.literal("BZgraph is only active on Hypixel."));
+								return 0;
+							}
+							pendingScreen = ItemSearchScreen.openGraph(null);
 							return 1;
 						})));
 	}
@@ -325,12 +329,9 @@ public final class BzGraphClient implements ClientModInitializer {
 			ensureProducts();
 			ensurePatches();
 		}
-		// Keybind with no screen open: graph the held item.
+		// Keybind with no screen open: item search.
 		while (openKey.consumeClick()) {
-			if (mc.gui.screen() == null && isActive()) {
-				ItemStack held = mc.player.getMainHandItem();
-				if (!held.isEmpty()) openForStack(held, null);
-			}
+			if (mc.gui.screen() == null && isActive()) mc.gui.setScreen(ItemSearchScreen.openGraph(null));
 		}
 	}
 
@@ -346,7 +347,13 @@ public final class BzGraphClient implements ClientModInitializer {
 			Slot slot = ((AbstractContainerScreenAccessor) screen).bzgraph$getHoveredSlot();
 			if (slot != null && slot.hasItem()) stack = slot.getItem();
 		}
-		if (stack == null) return false;
+		if (stack == null) {
+			// nothing hovered in an inventory/chest: open the item search instead (next tick, so the key's
+			// character doesn't land in the search box)
+			if (!(screen instanceof AbstractContainerScreen<?>)) return false;
+			pendingScreen = ItemSearchScreen.openGraph(screen);
+			return true;
+		}
 		openForStack(stack, screen);
 		return true;
 	}

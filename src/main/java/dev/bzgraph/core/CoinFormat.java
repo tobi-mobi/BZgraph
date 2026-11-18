@@ -32,6 +32,18 @@ public final class CoinFormat {
 		return sign + num + SUFFIX[idx];
 	}
 
+	private static final ThreadLocal<DecimalFormat> WHOLE = ThreadLocal.withInitial(
+			() -> new DecimalFormat("#,##0", DecimalFormatSymbols.getInstance(Locale.ROOT)));
+	private static final ThreadLocal<DecimalFormat> TENTHS = ThreadLocal.withInitial(
+			() -> new DecimalFormat("#,##0.#", DecimalFormatSymbols.getInstance(Locale.ROOT)));
+
+	/** Rounded for reading: 12,540 (no decimals from 1,000 up), 152.4, 3.45. */
+	public static String price(double v) {
+		if (Double.isNaN(v)) return "-";
+		double a = Math.abs(v);
+		return (a >= 1000 ? WHOLE : a >= 10 ? TENTHS : TWO).get().format(v);
+	}
+
 	/** Full form with grouping and one decimal: 1,299.3 */
 	public static String full(double v) {
 		if (Double.isNaN(v)) return "-";

@@ -187,7 +187,7 @@ public final class BazaarMiniChart {
 	private List<PricePoint> points() {
 		CachedHistory d = handle == null ? null : handle.data();
 		if (d == null) return List.of();
-		List<PricePoint> pts = d.points();
+		List<PricePoint> pts = dev.bzgraph.core.Resampler.resample(d.points());
 		PricePoint live = handle.live();
 		if (live != null && !pts.isEmpty() && live.timestamp().isAfter(pts.getLast().timestamp())) {
 			List<PricePoint> withLive = new ArrayList<>(pts);
@@ -292,7 +292,7 @@ public final class BazaarMiniChart {
 
 	private static void band(GuiGraphicsExtractor g, long[] t, double[] mins, double[] maxs, long tMin, long tMax, int w,
 							 int cx0, int cy0, int cy1, double lo, double hi, int color) {
-		int fill = (0x30 << 24) | (color & 0xFFFFFF);
+		int fill = (0x22 << 24) | (color & 0xFFFFFF);
 		for (int col = 0; col < w; col++) {
 			long tc = tMin + (long) ((double) col / Math.max(1, w - 1) * (tMax - tMin));
 			int i = java.util.Arrays.binarySearch(t, tc);

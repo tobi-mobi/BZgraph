@@ -10,6 +10,7 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
@@ -23,23 +24,15 @@ import java.util.Locale;
 /** Your purse over time (from the SkyBlock sidebar), with your bazaar trades marked on it. */
 public final class PurseScreen extends Screen implements BzScreen {
 	private static final int COLOR_LINE = 0xFFFFD700;
-	private static final int COLOR_TEXT = 0xFFFFFFFF;
-	private static final int COLOR_DIM = 0xFFAAAAAA;
-	private static final int COLOR_GRID = 0x30FFFFFF;
-	private static final int COLOR_AXIS = 0x80FFFFFF;
-	private static final int COLOR_PANEL_BG = 0xE0101014;
-	private static final int COLOR_PANEL = 0xA0000000;
-	private static final int COLOR_PANEL_BORDER = 0xFF3A3A44;
-	private static final int COLOR_UP = 0xFF55FF55;
-	private static final int COLOR_DOWN = 0xFFFF5555;
+	private static final int COLOR_TEXT = GraphUi.COLOR_TEXT;
+	private static final int COLOR_DIM = GraphUi.COLOR_DIM;
+	private static final int COLOR_GRID = GraphUi.COLOR_GRID;
 	private static final int PAD = 8;
 	private static final int Y_AXIS_W = 42;
+	private static final int HEADER_ROW = 22;
+	private static final int BUTTONS_Y = 38;
 	private static final int TRADE_CLUSTER_PX = 4;
 	private static final DateTimeFormatter FMT_TOOLTIP = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.ROOT);
-	private static final DateTimeFormatter FMT_TIME = DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT);
-	private static final DateTimeFormatter FMT_DAY = DateTimeFormatter.ofPattern("MMM d", Locale.ROOT);
-	private static final DateTimeFormatter FMT_MONTH = DateTimeFormatter.ofPattern("MMM yy", Locale.ROOT);
-	private static final DateTimeFormatter FMT_YEAR = DateTimeFormatter.ofPattern("yyyy", Locale.ROOT);
 
 	private final Screen root;
 	private final Screen back;
@@ -48,6 +41,7 @@ public final class PurseScreen extends Screen implements BzScreen {
 	private final List<Button> rangeButtons = new ArrayList<>();
 	private Button profileButton;
 	private Button tradesButton;
+	private boolean helpOpen;
 
 	private int px0, py0, px1, py1, gx0, gy0, gx1, gy1;
 
@@ -80,7 +74,7 @@ public final class PurseScreen extends Screen implements BzScreen {
 		py0 = (height - ph) / 2;
 		px1 = px0 + pw;
 		py1 = py0 + ph;
-		int buttonsY = py0 + 32;
+		int buttonsY = py0 + BUTTONS_Y;
 		gx0 = px0 + PAD + Y_AXIS_W;
 		gx1 = px1 - PAD - 2;
 		gy0 = buttonsY + 30;
@@ -89,30 +83,34 @@ public final class PurseScreen extends Screen implements BzScreen {
 		rangeButtons.clear();
 		int x = px0 + PAD;
 		for (TimeRange r : TimeRange.values()) {
-			Button b = Button.builder(Component.literal(r.label()), btn -> selectRange(r)).bounds(x, buttonsY, 32, 20).build();
-			b.active = r != range;
-			rangeButtons.add(addRenderableWidget(b));
+			rangeButtons.add(addRenderableWidget(Button.builder(Component.literal(r.label()), btn -> selectRange(r))
+					.bounds(x, buttonsY, 32, 20).build()));
 			x += 34;
 		}
+		GraphUi.rangeLabels(rangeButtons, range, true);
 		int bx = px1 - PAD;
 		tradesButton = addRenderableWidget(Button.builder(Component.empty(), b -> toggleTrades())
 				.bounds(bx -= 56, buttonsY, 56, 20).build());
-		tradesButton.setTooltip(Tooltip.create(Component.literal("Your bazaar trades (all items): ▼ sells, ▲ buys")));
+		tradesButton.setTooltip(Tooltip.create(Component.literal("Your bazaar trades (all items): ▲ buys, ▼ sells")));
 		profileButton = addRenderableWidget(Button.builder(Component.empty(), b -> cycleProfile())
-				.bounds(bx -= 2 + 100, buttonsY, 100, 20).build());
-		profileButton.setTooltip(Tooltip.create(Component.literal("SkyBlock profile (click to switch)")));
+				.bounds(bx -= 2 + 130, buttonsY, 130, 20).build());
+		profileButton.setTooltip(Tooltip.create(Component.literal("SkyBlock profile whose purse is shown (click to switch)")));
 		Button backBtn = addRenderableWidget(Button.builder(Component.literal("<"), b -> goBack())
 				.bounds(px0 + PAD - 2, py0 + 4, 14, 14).build());
 		backBtn.active = back != null;
+		Button help = addRenderableWidget(Button.builder(Component.literal("?"), b -> helpOpen = !helpOpen)
+				.bounds(px1 - PAD - 14, py0 + 4, 14, 14).build());
+		help.setTooltip(Tooltip.create(Component.literal("What the line and markers mean")));
 		updateLabels();
 	}
 
 	private void updateLabels() {
 		List<String> profiles = BzGraphClient.get().purse().store().profiles(TradeTracker.account());
-		profileButton.setMessage(Component.literal(profile == null ? "No profile" : profile));
-		profileButton.active = profiles.size() > 1 || (profile != null && !profiles.contains(profile) && !profiles.isEmpty());
-		boolean trades = BzGraphClient.get().config().showTrades;
-		tradesButton.setMessage(Component.literal((trades ? "■ " : "□ ") + "Trades").withColor(trades ? COLOR_TEXT : COLOR_DIM));
+		boolean cycles = profiles.size() > 1 || (profile != null && !profiles.contains(profile) && !profiles.isEmpty());
+		String name = profile == null ? "none yet" : font.plainSubstrByWidth(profile, 70);
+		profileButton.setMessage(Component.literal("Profile: " + name + (cycles ? " ▾" : "")));
+		profileButton.active = cycles;
+		tradesButton.setMessage(GraphUi.toggleLabel("Trades", BzGraphClient.get().config().showTrades, COLOR_TEXT));
 	}
 
 	private void cycleProfile() {
@@ -132,7 +130,7 @@ public final class PurseScreen extends Screen implements BzScreen {
 
 	private void selectRange(TimeRange r) {
 		range = r;
-		for (int i = 0; i < rangeButtons.size(); i++) rangeButtons.get(i).active = TimeRange.values()[i] != r;
+		GraphUi.rangeLabels(rangeButtons, r, true);
 		BzConfig cfg = BzGraphClient.get().config();
 		cfg.purseRange = r.label();
 		cfg.save();
@@ -144,11 +142,19 @@ public final class PurseScreen extends Screen implements BzScreen {
 
 	@Override
 	public boolean keyPressed(KeyEvent event) {
+		if (helpOpen) {
+			helpOpen = false;
+			return true;
+		}
+		int k = event.key();
+		if (k == GLFW.GLFW_KEY_SLASH || k == GLFW.GLFW_KEY_H) {
+			helpOpen = true;
+			return true;
+		}
 		if (BzGraphClient.get().openKey().matches(event)) {
 			onClose();
 			return true;
 		}
-		int k = event.key();
 		if (k >= GLFW.GLFW_KEY_1 && k <= GLFW.GLFW_KEY_5) {
 			selectRange(TimeRange.values()[k - GLFW.GLFW_KEY_1]);
 			return true;
@@ -158,6 +164,15 @@ public final class PurseScreen extends Screen implements BzScreen {
 			return true;
 		}
 		return super.keyPressed(event);
+	}
+
+	@Override
+	public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+		if (helpOpen) {
+			helpOpen = false;
+			return true;
+		}
+		return super.mouseClicked(event, doubleClick);
 	}
 
 	@Override
@@ -175,54 +190,62 @@ public final class PurseScreen extends Screen implements BzScreen {
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor g, int mx, int my, float partialTick) {
 		BzConfig cfg = BzGraphClient.get().config();
-		g.fill(px0, py0, px1, py1, cfg.background(COLOR_PANEL_BG, 1.0));
-		g.horizontalLine(px0, px1 - 1, py0, COLOR_PANEL_BORDER);
-		g.horizontalLine(px0, px1 - 1, py1 - 1, COLOR_PANEL_BORDER);
-		g.verticalLine(px0, py0, py1 - 1, COLOR_PANEL_BORDER);
-		g.verticalLine(px1 - 1, py0, py1 - 1, COLOR_PANEL_BORDER);
-		g.fill(gx0, gy0, gx1 + 1, gy1, cfg.background(COLOR_PANEL, 0.5));
+		GraphUi.panel(g, cfg, width, height, px0, py0, px1, py1);
+		GraphUi.plotBackground(g, cfg, gx0, gy0, gx1, gy1);
 		g.text(font, "Purse", px0 + PAD + 18, py0 + PAD, COLOR_TEXT);
-		String hint = "1-5 range · from your SkyBlock sidebar";
-		g.text(font, hint, px1 - PAD - font.width(hint), py1 - 12, 0xFF666666);
+		String hint = "1-5 range · ? help & sources";
+		g.text(font, hint, px1 - PAD - font.width(hint), py1 - 12, GraphUi.COLOR_FOOTER);
 
 		List<PurseStore.Point> all = BzGraphClient.get().purse().store().points(TradeTracker.account(), profile);
 		long now = System.currentTimeMillis();
+		if (!all.isEmpty()) {
+			g.text(font, "Last purse change " + GraphUi.ago(Instant.ofEpochMilli(all.getLast().time()), Instant.ofEpochMilli(now)),
+					px0 + PAD, py1 - 12, GraphUi.COLOR_FAINT);
+		}
 		Instant start = range.start(Instant.ofEpochMilli(now));
 		if (all.isEmpty()) {
-			String msg = cfg.trackPurse ? "No purse data yet. It's recorded from the sidebar while you play SkyBlock."
-					: "Purse tracking is off (\"trackPurse\" in config/bzgraph/config.json).";
-			g.centeredText(font, msg, (gx0 + gx1) / 2, (gy0 + gy1) / 2 - 4, COLOR_DIM);
-			super.extractRenderState(g, mx, my, partialTick);
+			int cx = (gx0 + gx1) / 2, cy = (gy0 + gy1) / 2;
+			if (cfg.trackPurse) {
+				g.centeredText(font, "No purse data yet", cx, cy - 8, COLOR_DIM);
+				g.centeredText(font, "It's recorded from the sidebar while you play SkyBlock.", cx, cy + 4, GraphUi.COLOR_FAINT);
+			} else {
+				g.centeredText(font, "Purse tracking is off", cx, cy - 8, COLOR_DIM);
+				g.centeredText(font, "Set \"trackPurse\" to true in config/bzgraph/config.json", cx, cy + 4, GraphUi.COLOR_FAINT);
+			}
+			finishFrame(g, mx, my, partialTick);
 			return;
 		}
 		long tMin = Math.max(start.toEpochMilli(), all.getFirst().time());
 		long tMax = Math.max(now, tMin + 60_000);
 		// visible steps: the value in force at tMin, then every change after it, then "now"
+		List<Long> ts = new ArrayList<>();
 		List<Double> vals = new ArrayList<>();
 		double startVal = PurseStore.valueAt(all, Instant.ofEpochMilli(tMin));
-		long[] times;
-		double[] values;
-		{
-			List<Long> ts = new ArrayList<>();
-			if (!Double.isNaN(startVal)) {
-				ts.add(tMin);
-				vals.add(startVal);
-			}
-			for (PurseStore.Point p : all) {
-				if (p.time() <= tMin || p.time() > tMax) continue;
-				ts.add(p.time());
-				vals.add(p.coins());
-			}
-			times = new long[ts.size()];
-			values = new double[ts.size()];
-			for (int i = 0; i < ts.size(); i++) {
-				times[i] = ts.get(i);
-				values[i] = vals.get(i);
-			}
+		if (!Double.isNaN(startVal)) {
+			ts.add(tMin);
+			vals.add(startVal);
 		}
-		drawHeader(g, times, values, tMin, tMax);
+		for (PurseStore.Point p : all) {
+			if (p.time() <= tMin || p.time() > tMax) continue;
+			ts.add(p.time());
+			vals.add(p.coins());
+		}
+		long[] times = new long[ts.size()];
+		double[] values = new double[ts.size()];
+		for (int i = 0; i < ts.size(); i++) {
+			times[i] = ts.get(i);
+			values[i] = vals.get(i);
+		}
+		drawHeader(g, values, tMin, tMax);
 		drawGraph(g, mx, my, times, values, tMin, tMax);
+		finishFrame(g, mx, my, partialTick);
+	}
+
+	private void finishFrame(GuiGraphicsExtractor g, int mx, int my, float partialTick) {
 		super.extractRenderState(g, mx, my, partialTick);
+		GraphUi.drawSelected(g, rangeButtons, range);
+		GraphUi.drawToggleBox(g, font, tradesButton, BzGraphClient.get().config().showTrades, COLOR_TEXT);
+		if (helpOpen) GraphUi.drawHelp(g, font, (gx0 + gx1) / 2, (gy0 + gy1) / 2, true, 0, 0);
 	}
 
 	private List<Trade> allTrades = List.of();
@@ -242,7 +265,8 @@ public final class PurseScreen extends Screen implements BzScreen {
 		return out;
 	}
 
-	private void drawHeader(GuiGraphicsExtractor g, long[] times, double[] values, long tMin, long tMax) {
+	/** Big: the purse now. Medium: change over the range. Small, grey: range low/high. Bazaar totals top right. */
+	private void drawHeader(GuiGraphicsExtractor g, double[] values, long tMin, long tMax) {
 		if (values.length == 0) return;
 		double first = values[0], cur = values[values.length - 1];
 		double min = Double.POSITIVE_INFINITY, max = Double.NEGATIVE_INFINITY;
@@ -250,19 +274,16 @@ public final class PurseScreen extends Screen implements BzScreen {
 			min = Math.min(min, v);
 			max = Math.max(max, v);
 		}
+		int x = px0 + PAD, y = py0 + HEADER_ROW;
+		x += GraphUi.scaledText(g, font, Component.literal("Purse ").withColor(COLOR_LINE)
+				.append(Component.literal(CoinFormat.compact(cur)).withColor(COLOR_TEXT)), x, y, 1.5f) + 6;
 		double change = cur - first;
-		int y = py0 + PAD + 11;
-		Component c = Component.literal("Now ").withColor(COLOR_LINE)
-				.append(Component.literal(CoinFormat.compact(cur)).withColor(COLOR_TEXT))
-				.append(Component.literal("  change ").withColor(COLOR_DIM))
-				.append(Component.literal((change >= 0 ? "+" : "") + CoinFormat.compact(change)
-						+ (first != 0 ? String.format(Locale.ROOT, " (%+.1f%%)", change / first * 100) : ""))
-						.withColor(change >= 0 ? COLOR_UP : COLOR_DOWN))
-				.append(Component.literal("  min ").withColor(COLOR_DIM))
-				.append(Component.literal(CoinFormat.compact(min)).withColor(COLOR_TEXT))
-				.append(Component.literal("  max ").withColor(COLOR_DIM))
-				.append(Component.literal(CoinFormat.compact(max)).withColor(COLOR_TEXT));
-		g.text(font, c, px0 + PAD, y, COLOR_TEXT);
+		String ch = (change > 0 ? "+" : "") + CoinFormat.compact(change)
+				+ (first != 0 ? String.format(Locale.ROOT, " (%+.1f%%)", change / first * 100) : "");
+		g.text(font, ch, x, y + 3, GraphUi.changeColor(change));
+		x += font.width(ch) + 12;
+		String lowHigh = range.label() + " low " + CoinFormat.compact(min) + " · high " + CoinFormat.compact(max);
+		g.text(font, lowHigh, x, y + 3, GraphUi.COLOR_FAINT);
 
 		// bazaar coins in/out over the same period (all profiles: trades aren't tied to a profile)
 		double in = 0, out = 0;
@@ -275,12 +296,12 @@ public final class PurseScreen extends Screen implements BzScreen {
 		}
 		if (n > 0) {
 			Component b = Component.literal("Bazaar: sold ").withColor(COLOR_DIM)
-					.append(Component.literal(CoinFormat.compact(in)).withColor(COLOR_UP))
+					.append(Component.literal(CoinFormat.compact(in)).withColor(in > 0 ? GraphUi.COLOR_UP : COLOR_DIM))
 					.append(Component.literal(" · bought ").withColor(COLOR_DIM))
-					.append(Component.literal(CoinFormat.compact(out)).withColor(COLOR_DOWN))
+					.append(Component.literal(CoinFormat.compact(out)).withColor(out > 0 ? GraphUi.COLOR_DOWN : COLOR_DIM))
 					.append(Component.literal(" · " + n + " trades").withColor(COLOR_DIM));
 			int w = font.width(b);
-			g.text(font, b, px1 - PAD - w, py0 + PAD, COLOR_TEXT);
+			g.text(font, b, px1 - PAD - 18 - w, py0 + PAD, COLOR_TEXT);
 		}
 	}
 
@@ -305,21 +326,9 @@ public final class PurseScreen extends Screen implements BzScreen {
 		for (double t : ticks) {
 			int y = yFor(t, lo, hi);
 			g.horizontalLine(gx0, gx1, y, COLOR_GRID);
-			String s = CoinFormat.compact(t);
-			g.text(font, s, gx0 - 4 - font.width(s), y - font.lineHeight / 2, COLOR_DIM);
+			GraphUi.yLabel(g, font, CoinFormat.compact(t), gx0, gy1, y);
 		}
-		int labels = Math.max(2, (gx1 - gx0) / 70);
-		DateTimeFormatter fmt = xFormatter(tMax - tMin);
-		for (int i = 0; i <= labels; i++) {
-			int x = gx0 + (gx1 - gx0) * i / labels;
-			long t = tMin + (long) ((tMax - tMin) * (double) i / labels);
-			String s = fmt.format(Instant.ofEpochMilli(t).atZone(ZoneId.systemDefault()));
-			int w = font.width(s);
-			g.verticalLine(x, gy0, gy1, COLOR_GRID);
-			g.text(font, s, Math.max(gx0 - w / 2, Math.min(x - w / 2, gx1 - w)), gy1 + 3, COLOR_DIM);
-		}
-		g.verticalLine(gx0, gy0, gy1, COLOR_AXIS);
-		g.horizontalLine(gx0, gx1, gy1, COLOR_AXIS);
+		GraphUi.xAxis(g, font, gx0, gy0, gx1, gy1, gy1 + 3, tMin, tMax);
 
 		// Step line: each column spans the lowest-highest value in force during it.
 		int w = gx1 - gx0 + 1;
@@ -346,9 +355,10 @@ public final class PurseScreen extends Screen implements BzScreen {
 			prevY = yFor(values[Math.max(i, j - 1)], lo, hi);
 		}
 		// "now" dot
-		dot(g, gx1, yFor(values[values.length - 1], lo, hi), COLOR_LINE);
+		GraphUi.dot(g, gx1, yFor(values[values.length - 1], lo, hi), COLOR_LINE);
 
 		drawTrades(g, times, values, tMin, tMax, lo, hi);
+		if (helpOpen) return;
 		TradeCluster tc = hoveredTrade(mx, my);
 		if (tc != null) drawTradeTooltip(g, tc, mx, my);
 		else if (mx >= gx0 && mx <= gx1 && my >= gy0 && my <= gy1) drawCrosshair(g, mx, my, times, values, tMin, tMax, lo, hi);
@@ -376,15 +386,10 @@ public final class PurseScreen extends Screen implements BzScreen {
 			if (!cur.isEmpty()) out.add(cluster(side, cur, times, values, tMin, tMax, lo, hi));
 		}
 		tradeClusters = out;
-		for (TradeCluster c : out) {
-			boolean sell = c.side() == Trade.Side.SELL;
-			int size = c.trades().size() > 1 ? 4 : 3;
-			triangle(g, c.x(), c.y(), size + 1, sell, 0xFF000000);
-			triangle(g, c.x(), c.y() + (sell ? -1 : 1), size, sell, sell ? COLOR_DOWN : COLOR_UP);
-		}
+		for (TradeCluster c : out) GraphUi.tradeMarker(g, c.x(), c.y(), c.side() == Trade.Side.SELL, c.trades().size() > 1);
 	}
 
-	/** Sells sit above the purse line (pointing down at it), buys below it. */
+	/** Sells sit above the purse line (▼ pointing down at it), buys below it (▲ pointing up). */
 	private TradeCluster cluster(Trade.Side side, List<Trade> ts, long[] times, double[] values, long tMin, long tMax,
 								 double lo, double hi) {
 		long ms = ts.getLast().time().toEpochMilli();
@@ -403,7 +408,7 @@ public final class PurseScreen extends Screen implements BzScreen {
 
 	private TradeCluster hoveredTrade(double mx, double my) {
 		TradeCluster best = null;
-		double bestD = 7;
+		double bestD = 5;
 		for (TradeCluster c : tradeClusters) {
 			double d = Math.hypot(mx - c.x(), my - (c.y() + (c.side() == Trade.Side.SELL ? -2 : 2)));
 			if (d < bestD) {
@@ -420,17 +425,32 @@ public final class PurseScreen extends Screen implements BzScreen {
 		ZoneId zone = ZoneId.systemDefault();
 		double coins = 0;
 		for (Trade t : c.trades()) if (!Double.isNaN(t.coins())) coins += t.coins();
-		lines.add(Component.literal(c.trades().size() == 1 ? (sell ? "Sold" : "Bought") : c.trades().size() + (sell ? " sells" : " buys"))
-				.withColor(sell ? COLOR_DOWN : COLOR_UP)
-				.append(Component.literal("  " + (sell ? "+" : "-") + CoinFormat.compact(coins) + " coins").withColor(COLOR_TEXT)));
+		if (c.trades().size() > 1) {
+			lines.add(Component.literal((sell ? "▼ " : "▲ ") + c.trades().size() + (sell ? " sells" : " buys"))
+					.withColor(GraphUi.COLOR_TRADE)
+					.append(Component.literal("  " + (sell ? "+" : "-") + CoinFormat.compact(coins) + " coins").withColor(COLOR_DIM)));
+		}
 		int shown = Math.min(8, c.trades().size());
+		boolean offer = false;
 		for (int i = 0; i < shown; i++) {
 			Trade t = c.trades().get(i);
-			lines.add(Component.literal(t.amount() + "x " + t.item()).withColor(0xFFDDDDDD)
-					.append(Component.literal(Double.isNaN(t.coins()) ? "" : "  " + CoinFormat.compact(t.coins())).withColor(COLOR_DIM)));
+			offer |= t.kind() != Trade.Kind.INSTANT;
+			// "Sold 64× Enchanted Umber @ 15.2k"
+			net.minecraft.network.chat.MutableComponent line = Component.literal(
+					(c.trades().size() == 1 ? (sell ? "▼ " : "▲ ") : "") + (sell ? "Sold " : "Bought ") + t.amount() + "× ")
+					.withColor(c.trades().size() == 1 ? GraphUi.COLOR_TRADE : 0xFFDDDDDD)
+					.append(Component.literal(t.item()).withColor(COLOR_TEXT));
+			if (t.hasPrice()) line.append(Component.literal(" @ " + CoinFormat.compact(t.unitPrice())).withColor(0xFFDDDDDD));
+			if (!Double.isNaN(t.coins())) line.append(Component.literal("  (" + CoinFormat.compact(t.coins()) + ")").withColor(COLOR_DIM));
+			lines.add(line);
 		}
 		if (c.trades().size() > shown) lines.add(Component.literal("+" + (c.trades().size() - shown) + " more").withColor(COLOR_DIM));
 		lines.add(Component.literal(FMT_TOOLTIP.format(c.trades().getFirst().time().atZone(zone))).withColor(COLOR_DIM));
+		if (offer) {
+			// why the purse may not move right at the marker
+			lines.add(Component.literal(sell ? "Offer filled: the coins reach your purse when you claim them"
+					: "Order filled: the coins left your purse when you placed the order").withColor(GraphUi.COLOR_FAINT));
+		}
 		g.setComponentTooltipForNextFrame(font, lines, mx, my);
 	}
 
@@ -441,14 +461,14 @@ public final class PurseScreen extends Screen implements BzScreen {
 		for (int k = 0; k < times.length && times[k] <= t; k++) i = k;
 		if (i < 0) return;
 		g.verticalLine(mx, gy0, gy1, 0x90FFFFFF);
-		dot(g, mx, yFor(values[i], lo, hi), COLOR_LINE);
+		GraphUi.dot(g, mx, yFor(values[i], lo, hi), COLOR_LINE);
 		List<Component> lines = new ArrayList<>();
 		lines.add(Component.literal(FMT_TOOLTIP.format(Instant.ofEpochMilli(t).atZone(ZoneId.systemDefault()))).withColor(COLOR_TEXT));
-		lines.add(Component.literal("Purse: ").withColor(COLOR_LINE).append(Component.literal(CoinFormat.full(values[i])).withColor(COLOR_TEXT)));
+		lines.add(Component.literal("Purse: ").withColor(COLOR_LINE).append(Component.literal(CoinFormat.price(values[i])).withColor(COLOR_TEXT)));
 		if (i > 0) {
 			double d = values[i] - values[i - 1];
 			lines.add(Component.literal("last change ").withColor(COLOR_DIM)
-					.append(Component.literal((d >= 0 ? "+" : "") + CoinFormat.compact(d)).withColor(d >= 0 ? COLOR_UP : COLOR_DOWN))
+					.append(Component.literal((d > 0 ? "+" : "") + CoinFormat.compact(d)).withColor(GraphUi.changeColor(d)))
 					.append(Component.literal("  at " + FMT_TOOLTIP.format(Instant.ofEpochMilli(times[i]).atZone(ZoneId.systemDefault()))).withColor(COLOR_DIM)));
 		}
 		g.setComponentTooltipForNextFrame(font, lines, mx, my);
@@ -460,25 +480,5 @@ public final class PurseScreen extends Screen implements BzScreen {
 
 	private int yFor(double v, double lo, double hi) {
 		return gy1 - (int) Math.round((v - lo) / (hi - lo) * (gy1 - gy0));
-	}
-
-	private static void dot(GuiGraphicsExtractor g, int x, int y, int color) {
-		g.fill(x - 2, y - 2, x + 3, y + 3, 0xFF000000);
-		g.fill(x - 1, y - 1, x + 2, y + 2, color);
-	}
-
-	private static void triangle(GuiGraphicsExtractor g, int x, int y, int size, boolean down, int color) {
-		for (int i = 0; i < size; i++) {
-			int row = down ? y - i : y + i;
-			g.fill(x - i, row, x + i + 1, row + 1, color);
-		}
-	}
-
-	private static DateTimeFormatter xFormatter(long spanMillis) {
-		long day = 86_400_000L;
-		if (spanMillis <= 2 * day) return FMT_TIME;
-		if (spanMillis <= 90 * day) return FMT_DAY;
-		if (spanMillis <= 3 * 365 * day) return FMT_MONTH;
-		return FMT_YEAR;
 	}
 }

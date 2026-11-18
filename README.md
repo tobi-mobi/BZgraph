@@ -3,11 +3,14 @@
 Client-side Fabric mod for **Minecraft 26.2** that shows an in-game price-history graph for Hypixel SkyBlock **bazaar** items.
 
 > **Data: [SkyCofl (sky.coflnet.com)](https://sky.coflnet.com)** — all price history comes from the SkyCofl API.
-> The attribution is shown (and clickable) on every graph screen, as required by the data provider's terms.
+> A short clickable "SkyCofl" credit is shown on every graph screen, as required by the data provider's terms; the
+> **?** box on each graph lists all data sources.
 
 ## Features
 
 - **Hover + key**: hover an item in any container GUI (inventory, bazaar menu, chests) and press **G** to open its graph.
+- **Item search**: press **G** with no screen open (or with nothing hovered in an inventory/chest), or type `/bzgraph`,
+  to search bazaar items by name or ID; Enter or a click opens the graph.
   With no GUI open, **G** graphs the item in your main hand.
 - **Recipe viewers**: search for an item, hover it and press **G** to graph it.
   - **Reliable Recipe Viewer (RRV)**: works in RRV's item list, bookmarks and craftables (BZgraph registers its key
@@ -15,23 +18,32 @@ Client-side Fabric mod for **Minecraft 26.2** that shows an in-game price-histor
   - **Roughly Enough Items (REI)**: works in REI's item list, favorites and recipe screens.
   Both are optional; BZgraph talks to them through reflection and simply skips this when they aren't installed. G is ignored while a text box (REI search, anvil, creative search) is
   focused.
-- **Command**: `/bzgraph <ITEM_ID>` with tab-completion of all bazaar product IDs (e.g. `/bzgraph ENCHANTED_DIAMOND`).
+- **Command**: `/bzgraph` opens the item search; `/bzgraph <ITEM_ID>` opens a graph directly, with tab-completion of all bazaar product IDs (e.g. `/bzgraph ENCHANTED_DIAMOND`).
 - **Graph screen** (a centered panel, about three quarters of the screen)
-  - Buy and sell price lines, each toggleable (Buy / Sell buttons).
-  - Time ranges **1D / 1W / 1M / 1Y / ALL** (buttons or keys `1`–`5`). `R` forces a refresh.
+  - Buy and sell price lines, each toggleable (Buy / Sell buttons; filled box = on, hollow = off). **Buy** is the
+    insta-buy price (lowest sell offer), **Sell** the insta-sell price (highest buy order); hover the labels to see this.
+  - The **?** button (or `H`) explains every line, marker and shortcut; it opens by itself the first time.
+  - Time ranges **1D / 1W / 1M / 1Y / ALL** (buttons or keys `1`–`5`; the selected one is outlined). `R` forces a refresh.
+  - Each range is drawn at one level of detail: SkyCofl's fine recent samples are merged into the same bucket size as
+    the older ones, so the right edge doesn't turn into a scribble.
   - **‹ ›** arrows (or Left/Right arrow keys, or mouse back/forward buttons) move through the items you've opened in
     this session, e.g. after clicking an item in a patch note.
   - `Esc` (or `G`) closes BZgraph entirely and returns to the screen you opened it from; the patch screens' **Back**
     button goes back one step.
-  - Hover crosshair with date, buy, sell and volume.
+  - Hover crosshair with date, buy, sell, spread, volume, the mayor at that time and the patch note on that point.
   - A faint band behind each line shows the lowest–highest price within each sample (a whole day on 1M/1Y/ALL),
-    since a daily line can't show moves within the day; your trade markers fall inside it. Toggle with the
-    **Band** button or `B`.
-  - Y-axis with compact coin formatting (`950`, `1.2k`, `3.4M`, `1.5B`), date x-axis.
-  - Header with current / min / max for each visible series.
-  - Loading spinner, "Refreshing…" badge, and clear errors: offline, rate limited (auto-retry), not a bazaar item, no data.
-- **Mayor bar** under the graph: who was mayor (and minister) at each point, coloured by type; hover for perks.
-  Toggle with `M`. Mayor data: SkyCofl.
+    since a daily line can't show moves within the day; your trade markers fall inside it. With both lines shown,
+    hovering near one shows only its band; single outlier trades are clipped so they don't stretch it. Toggle with
+    the **Band** button or `B`.
+  - Y-axis with compact coin formatting (`950`, `1.2k`, `3.4M`, `1.5B`); time axis ticks at round, evenly spaced
+    times (every 3 hours, every 4 days, every month...).
+  - Header: current buy/sell in large text with their change over the range, then the spread and the range's
+    low/high. Hover the title for the internal item ID.
+  - "SkyCofl · updated 2 min ago", loading spinner, "Refreshing…" badge, and clear errors: prices can't be loaded
+    (press R to retry), rate limited (auto-retry), not a bazaar item, no data.
+- **Mayor bar** under the graph: who was mayor (and minister) at each point, coloured by type (neighbouring terms of
+  the same type are shaded apart; terms too thin to label can still be hovered); hover for perks.
+  Toggle with `M`.
 - **Mini chart in the bazaar**: on an item's page in Hypixel's bazaar, a small chart (buy/sell lines, band, current
   prices and change over the range) appears left of the window. Click it for the full graph; right-click to change
   its range. Turn it off with `"miniChart": false`.
@@ -41,17 +53,20 @@ Client-side Fabric mod for **Minecraft 26.2** that shows an in-game price-histor
   mention the item, all patches, or none). Markers close together merge into one; clicking it lists them.
 - **Patch note browser**: `/bzgraph patches` or `P` on a graph — searchable list with title, date, a short summary,
   mentioned bazaar items (click to graph) and an "Open full post" link to the Hypixel forums.
-- **Your trades on the graph**: ▼ where you sold and ▲ where you bought, at the price you got. Hover for amount, price,
-  coins, time and how the price has moved since. Nearby trades merge into one marker. "Trades: On/Off" button.
+- **Your trades on the graph**: ▲ where you bought and ▼ where you sold, at the price you got (the same markers on the
+  purse graph; neutral white, so a sale doesn't read as a loss). Hover for amount, price, coins, time and how the
+  price has moved since. Nearby trades merge into one marker. **Trades** button.
+- **Patch notes** are a thin line through the graph with a small flag on top (two flags when several are merged).
   See [Your trades](#your-trades).
 - **Compare items**: **+ Compare** (or `C`) on a graph adds up to 3 more bazaar items (search by name or ID), or
-  `/bzgraph compare ENCHANTED_DIAMOND DIAMOND ...`. Each item gets its own colour; buy is a solid line, sell dashed
-  (the Buy / Sell buttons apply to all). The mode button switches between:
+  `/bzgraph compare ENCHANTED_DIAMOND DIAMOND ...`. Each item gets its own colour (colour-blind friendly) and one
+  line: pick buy or sell price with the Buy / Sell buttons, or turn on **Both lines** (sell lines faded). The
+  **Show:** button switches the Y axis between:
   - **% change** (default): every line starts at 0% at the left edge, so a 5-coin and a 5M item can be compared;
   - **Price**: actual prices on one axis;
   - **Ratio** (two items): first ÷ second, e.g. Enchanted Diamond ÷ Diamond for craft flips.
-  The header shows each item's change over the range; click a compared item there to remove it. Bands and trade
-  markers are hidden while comparing.
+  The header says which price is compared and shows each item's change over the range; click any item's ✕ to remove
+  it (removing the first item makes the next one the main item). Bands and trade markers are hidden while comparing.
 - **Purse graph**: `/bzgraph purse` or the **Purse** button on a graph. BZgraph reads the `Purse:` line of the
   SkyBlock sidebar once a second, so every change counts (bazaar, auction house, NPCs, mobs, ...); bank coins
   aren't in the sidebar and aren't included. Changes of 1,000+ coins (or 0.1% of the purse) are saved right away,
@@ -89,7 +104,9 @@ Client-side Fabric mod for **Minecraft 26.2** that shows an in-game price-histor
   "showMayors": true,
   "trackPurse": true,
   "purseRange": "1W",
-  "compareMode": "PERCENT"
+  "compareMode": "PERCENT",
+  "compareSide": "BUY",
+  "compareBoth": false
 }
 ```
 
@@ -180,7 +197,7 @@ The mod jar is written to `build/libs/bzgraph-<version>.jar`. Requires Fabric Lo
 
 Unit tests (`./gradlew test`) cover JSON parsing and timestamp handling, merging/deduping the two ALL-range responses,
 request-queue spacing, cache TTL, disk/LRU caches, coin formatting, item-ID mapping, comparison maths (% change,
-ratios) and purse reading/recording.
+ratios), purse reading/recording, time-axis ticks and resampling.
 
 ## Credits
 
