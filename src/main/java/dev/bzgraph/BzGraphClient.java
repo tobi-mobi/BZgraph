@@ -4,9 +4,7 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import dev.bzgraph.core.ApiClient;
 import dev.bzgraph.core.DiskCache;
-import dev.bzgraph.core.CachedText;
 import dev.bzgraph.core.HistoryRepository;
-import dev.bzgraph.core.ItemAreas;
 import dev.bzgraph.core.MayorRepository;
 import dev.bzgraph.core.PatchIndexRepository;
 import dev.bzgraph.core.RequestQueue;
@@ -17,6 +15,8 @@ import dev.bzgraph.mc.BazaarMiniChart;
 import dev.bzgraph.mc.BzScreen;
 import dev.bzgraph.mc.GraphNav;
 import dev.bzgraph.mc.PatchListScreen;
+import dev.bzgraph.mc.PurseScreen;
+import dev.bzgraph.mc.PurseTracker;
 import dev.bzgraph.mc.ReiCompat;
 import dev.bzgraph.mc.RrvCompat;
 import dev.bzgraph.mc.TradeTracker;
@@ -71,10 +71,8 @@ public final class BzGraphClient implements ClientModInitializer {
 	private ApiClient api;
 	private HistoryRepository repository;
 	private TradeTracker trades;
+	private PurseTracker purse;
 	private MayorRepository mayors;
-	private CachedText collections;
-	private volatile ItemAreas itemAreas = ItemAreas.keywordsOnly();
-	private final AtomicBoolean areasLoading = new AtomicBoolean();
 	private PatchIndexRepository patches;
 	private String defaultPatchIndexUrl = "";
 	private final AtomicBoolean patchesStarted = new AtomicBoolean();
@@ -109,7 +107,6 @@ public final class BzGraphClient implements ClientModInitializer {
 
 		mayors = new MayorRepository(api::getText, dir.resolve("cache").resolve("mayors.json"), io, Instant::now,
 				msg -> LOGGER.warn(msg));
-		collections = new CachedText(api::getText, dir.resolve("cache").resolve("collections.json"), Duration.ofDays(7), io);
 
 		// Your own bazaar trades: from chat (live) and from old log files (once per file).
 		trades = new TradeTracker(dir, api, io);
@@ -117,7 +114,13 @@ public final class BzGraphClient implements ClientModInitializer {
 		// GAME_CANCELED too: other mods (e.g. chat filters) may hide bazaar messages, but they still happened.
 		ClientReceiveMessageEvents.GAME.register((msg, overlay) -> onGameMessage(msg, overlay));
 		ClientReceiveMessageEvents.GAME_CANCELED.register((msg, overlay) -> onGameMessage(msg, overlay));
-		ClientLifecycleEvents.CLIENT_STOPPING.register(mc -> trades.stop());
+		// Purse history from the SkyBlock sidebar (every change: bazaar, auctions, NPCs, mobs, bank...).
+		purse = new PurseTracker(dir, io);
+		purse.start();
+		ClientLifecycleEvents.CLIENT_STOPPING.register(mc -> {
+			trades.stop();
+			purse.stop();
+		});
 
 		defaultPatchIndexUrl = FabricLoader.getInstance().getModContainer(MOD_ID)
 				.map(c -> c.getMetadata().getCustomValue("bzgraph:patch_index_url"))
@@ -164,6 +167,28 @@ public final class BzGraphClient implements ClientModInitializer {
 							pendingScreen = new PatchListScreen(null, new GraphNav(null), null, null, null, null);
 							return 1;
 						}))
+						.then(ClientCommands.literal("purse").executes(c -> {
+							if (!isActive()) {
+								c.getSource().sendError(Component.literal("BZgraph is only active on Hypixel."));
+								return 0;
+							}
+							pendingScreen = new PurseScreen(null, null);
+							return 1;
+						}))
+						.then(ClientCommands.literal("compare")
+								.then(ClientCommands.argument("items", StringArgumentType.greedyString())
+										.suggests((c, b) -> {
+											ensureProducts();
+											Set<String> p = products;
+											if (p == null) return b.buildFuture();
+											String rem = b.getRemaining();
+											int sp = rem.lastIndexOf(' ');
+											String last = rem.substring(sp + 1).toUpperCase(Locale.ROOT);
+											var sub = b.createOffset(b.getStart() + sp + 1);
+											for (String id : p) if (id.startsWith(last)) sub.suggest(id);
+											return sub.buildFuture();
+										})
+										.executes(c -> runCompare(c.getSource(), StringArgumentType.getString(c, "items")))))
 						.then(ClientCommands.literal("trades")
 									.executes(c -> {
 										int n = trades.service().store().count(TradeTracker.account());
@@ -200,25 +225,6 @@ public final class BzGraphClient implements ClientModInitializer {
 		return products;
 	}
 
-	/** Which part of the game each item belongs to (keyword rules until Hypixel's collections list is loaded). */
-	public ItemAreas itemAreas() {
-		if (areasLoading.compareAndSet(false, true)) {
-			collections.get(URI.create("https://api.hypixel.net/v2/resources/skyblock/collections")).whenComplete((body, err) -> {
-				if (err != null) {
-					LOGGER.warn("Could not load collections list: {}", err.toString());
-					areasLoading.set(false);
-					return;
-				}
-				try {
-					itemAreas = ItemAreas.fromCollections(body);
-				} catch (RuntimeException e) {
-					LOGGER.warn("Collections list was invalid: {}", e.toString());
-				}
-			});
-		}
-		return itemAreas;
-	}
-
 	public MayorRepository mayors() {
 		return mayors;
 	}
@@ -227,8 +233,14 @@ public final class BzGraphClient implements ClientModInitializer {
 		return trades;
 	}
 
+	public PurseTracker purse() {
+		return purse;
+	}
+
 	private void onGameMessage(Component msg, boolean overlay) {
-		if (!overlay && isActive()) trades.onMessage(msg);
+		if (overlay || !isActive()) return;
+		trades.onMessage(msg);
+		purse.onMessage(msg);
 	}
 
 	private int importTrades(FabricClientCommandSource src, String folder) {
@@ -302,6 +314,7 @@ public final class BzGraphClient implements ClientModInitializer {
 
 	private void onTick(Minecraft mc) {
 		trades.tick();
+		purse.tick(mc, mc.player != null && isActive());
 		if (pendingScreen != null) {
 			Screen s = pendingScreen;
 			pendingScreen = null;
@@ -362,6 +375,33 @@ public final class BzGraphClient implements ClientModInitializer {
 			return 0;
 		}
 		pendingScreen = new GraphScreen(null, id, null);
+		return 1;
+	}
+
+	private int runCompare(FabricClientCommandSource src, String raw) {
+		if (!isActive()) {
+			src.sendError(Component.literal("BZgraph is only active on Hypixel."));
+			return 0;
+		}
+		ensureProducts();
+		Set<String> p = products;
+		java.util.List<String> ids = new java.util.ArrayList<>();
+		for (String part : raw.trim().split("\\s+")) {
+			String id = part.toUpperCase(Locale.ROOT);
+			if (id.isEmpty() || ids.contains(id)) continue;
+			if (p != null && !p.contains(id)) {
+				src.sendError(Component.literal(id + " is not a bazaar product.").withStyle(ChatFormatting.RED));
+				return 0;
+			}
+			ids.add(id);
+		}
+		if (ids.size() < 2) {
+			src.sendError(Component.literal("Usage: /bzgraph compare <ITEM_ID> <ITEM_ID> [more...]"));
+			return 0;
+		}
+		GraphScreen s = new GraphScreen(null, ids.getFirst(), null);
+		for (String id : ids.subList(1, ids.size())) s.addCompare(id);
+		pendingScreen = s;
 		return 1;
 	}
 

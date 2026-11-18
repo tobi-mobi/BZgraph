@@ -3,10 +3,9 @@ package dev.bzgraph.mc;
 import dev.bzgraph.BzGraphClient;
 import dev.bzgraph.core.CachedHistory;
 import dev.bzgraph.core.CoinFormat;
+import dev.bzgraph.core.CompareMath;
 import dev.bzgraph.core.Downsampler;
 import dev.bzgraph.core.HistoryHandle;
-import dev.bzgraph.core.JumpCauses;
-import dev.bzgraph.core.JumpDetector;
 import dev.bzgraph.core.MayorHistory;
 import dev.bzgraph.core.PatchNote;
 import dev.bzgraph.core.PriceImpact;
@@ -107,19 +106,12 @@ public final class GraphScreen extends Screen implements BzScreen {
 	private List<TradeCluster> tradeClusters = List.of();
 
 	private static final int MAYOR_BAR_H = 10;
-	private static final int MAX_JUMPS = 8;
-	private static final int COLOR_JUMP = 0xFFFFD43B;
 
-	/** Mayor-bar segments and jump markers drawn in the last frame (for hover/click). */
+	/** Mayor-bar segments drawn in the last frame (for hover). */
 	private record MayorSegment(int x0, int x1, MayorHistory.Term term) {
 	}
 
-	private record JumpMarker(int x, int y, JumpDetector.Jump jump) {
-	}
-
 	private List<MayorSegment> mayorSegments = List.of();
-	private List<JumpMarker> jumpMarkers = List.of();
-	private List<JumpDetector.Jump> jumps = List.of();
 	private int mayorBarY = -1;
 	private Button backButton;
 	private Button forwardButton;
@@ -129,6 +121,62 @@ public final class GraphScreen extends Screen implements BzScreen {
 	}
 
 	private List<Cluster> clusters = List.of();
+
+	// ---- comparing items
+	private static final int MAX_COMPARE = 3;
+	private static final int COLOR_MAIN = 0xFFFFAA00;
+	private static final int[] COMPARE_COLORS = {0xFF55AAFF, 0xFFFF66CC, 0xFF66FF66};
+
+	/** Another item drawn on the same graph. */
+	private static final class CompareItem {
+		final String id;
+		final String name;
+		final int color;
+		HistoryHandle handle;
+		private CachedHistory builtFrom;
+		private PricePoint builtLive;
+		long[] t = new long[0];
+		double[] buy = new double[0], sell = new double[0];
+
+		CompareItem(String id, String name, int color) {
+			this.id = id;
+			this.name = name;
+			this.color = color;
+		}
+
+		void build() {
+			CachedHistory d = handle == null ? null : handle.data();
+			PricePoint live = handle == null ? null : handle.live();
+			if (d == builtFrom && live == builtLive) return;
+			builtFrom = d;
+			builtLive = live;
+			List<PricePoint> pts = d == null ? List.of() : d.points();
+			boolean addLive = live != null && !pts.isEmpty() && live.timestamp().isAfter(pts.getLast().timestamp());
+			int n = pts.size() + (addLive ? 1 : 0);
+			t = new long[n];
+			buy = new double[n];
+			sell = new double[n];
+			for (int i = 0; i < n; i++) {
+				PricePoint p = i < pts.size() ? pts.get(i) : live;
+				t[i] = p.timestamp().toEpochMilli();
+				buy[i] = p.buy();
+				sell[i] = p.sell();
+			}
+		}
+	}
+
+	/** One drawn line in compare mode; {@code raw} is the price behind a % value. */
+	private record Line(String label, int color, boolean dashed, long[] t, double[] v, double[] raw, long maxGap) {
+	}
+
+	private record LegendHit(int x0, int x1, CompareItem item) {
+	}
+
+	private final List<CompareItem> compare = new ArrayList<>();
+	private List<LegendHit> legendHits = List.of();
+	private Button compareButton;
+	private Button modeButton;
+	private Button purseButton;
 
 	// Layout: the whole graph lives in a centered panel (px0..px1, py0..py1)
 	private int px0, py0, px1, py1;
@@ -252,9 +300,89 @@ public final class GraphScreen extends Screen implements BzScreen {
 		attrX = px0 + PAD;
 		attrY = py1 - 12;
 
+		// top right: [mode] [+ Compare] [Purse]
+		int tx = px1 - PAD;
+		purseButton = addRenderableWidget(Button.builder(Component.literal("Purse"), b -> openPurse())
+				.bounds(tx -= 40, py0 + 4, 40, 14).build());
+		purseButton.setTooltip(Tooltip.create(Component.literal("Your purse over time (from the SkyBlock sidebar)")));
+		compareButton = addRenderableWidget(Button.builder(Component.literal("+ Compare"), b -> openCompareSearch())
+				.bounds(tx -= 2 + 60, py0 + 4, 60, 14).build());
+		compareButton.setTooltip(Tooltip.create(Component.literal("Draw other bazaar items on this graph (C)")));
+		modeButton = addRenderableWidget(Button.builder(Component.empty(), b -> cycleCompareMode())
+				.bounds(tx -= 2 + 64, py0 + 4, 64, 14).build());
+		modeButton.setTooltip(Tooltip.create(Component.literal("% change: every line starts at 0% at the left edge\n"
+				+ "Price: actual prices\nRatio: first item \u00f7 second item (two items only)")));
+		updateCompareState();
+
 		if (hasProduct && (handle == null || handle.range() != range)) {
 			handle = BzGraphClient.get().repository().load(productId, range);
 		}
+	}
+
+	/** Adds an item to compare with (ignored if it's already shown or the limit is reached). */
+	public void addCompare(String id) {
+		if (id == null || id.equals(productId) || compare.size() >= MAX_COMPARE) return;
+		for (CompareItem c : compare) if (c.id.equals(id)) return;
+		int color = COMPARE_COLORS[0];
+		for (int col : COMPARE_COLORS) {
+			boolean used = false;
+			for (CompareItem c : compare) used |= c.color == col;
+			if (!used) {
+				color = col;
+				break;
+			}
+		}
+		CompareItem c = new CompareItem(id, BzGraphClient.get().trades().displayName(id), color);
+		c.handle = BzGraphClient.get().repository().load(id, range);
+		compare.add(c);
+		if (modeButton != null) updateCompareState();
+	}
+
+	private void removeCompare(CompareItem c) {
+		compare.remove(c);
+		updateCompareState();
+	}
+
+	private void openCompareSearch() {
+		if (productId == null || compare.size() >= MAX_COMPARE) return;
+		Set<String> exclude = new java.util.HashSet<>();
+		exclude.add(productId);
+		for (CompareItem c : compare) exclude.add(c.id);
+		minecraft.gui.setScreen(new CompareSearchScreen(this, nav.root(), exclude, this::addCompare));
+	}
+
+	private void openPurse() {
+		minecraft.gui.setScreen(new PurseScreen(nav.root(), this));
+	}
+
+	private BzConfig.CompareMode compareMode() {
+		BzConfig.CompareMode m = BzGraphClient.get().config().compareMode();
+		return m == BzConfig.CompareMode.RATIO && compare.size() != 1 ? BzConfig.CompareMode.PERCENT : m;
+	}
+
+	private void cycleCompareMode() {
+		BzConfig.CompareMode m = switch (compareMode()) {
+			case PERCENT -> BzConfig.CompareMode.PRICE;
+			case PRICE -> compare.size() == 1 ? BzConfig.CompareMode.RATIO : BzConfig.CompareMode.PERCENT;
+			case RATIO -> BzConfig.CompareMode.PERCENT;
+		};
+		BzConfig cfg = BzGraphClient.get().config();
+		cfg.compareMode = m.name();
+		cfg.save();
+		updateCompareState();
+	}
+
+	private void updateCompareState() {
+		boolean comparing = !compare.isEmpty();
+		modeButton.visible = comparing;
+		modeButton.setMessage(Component.literal(switch (compareMode()) {
+			case PERCENT -> "% change";
+			case PRICE -> "Price";
+			case RATIO -> "Ratio";
+		}));
+		compareButton.active = productId != null && compare.size() < MAX_COMPARE;
+		// bands and your trades belong to a single item's price
+		bandButton.active = tradesButton.active = productId != null && !comparing;
 	}
 
 	private static int clamp(int v, int lo, int hi) {
@@ -266,6 +394,7 @@ public final class GraphScreen extends Screen implements BzScreen {
 		range = r;
 		for (int i = 0; i < rangeButtons.size(); i++) rangeButtons.get(i).active = TimeRange.values()[i] != r;
 		handle = BzGraphClient.get().repository().load(productId, range);
+		for (CompareItem c : compare) c.handle = BzGraphClient.get().repository().load(c.id, range);
 		BzConfig cfg = BzGraphClient.get().config();
 		cfg.defaultRange = r.label();
 		cfg.save();
@@ -351,12 +480,6 @@ public final class GraphScreen extends Screen implements BzScreen {
 			rebuildWidgets(); // the plot height changes
 			return true;
 		}
-		if (productId != null && k == GLFW.GLFW_KEY_J) {
-			BzConfig cfg = BzGraphClient.get().config();
-			cfg.showJumps = !cfg.showJumps;
-			cfg.save();
-			return true;
-		}
 		if (productId != null && k == GLFW.GLFW_KEY_B) {
 			toggleBands();
 			return true;
@@ -367,6 +490,11 @@ public final class GraphScreen extends Screen implements BzScreen {
 		}
 		if (productId != null && k == GLFW.GLFW_KEY_R && handle != null && !handle.isBusy()) {
 			BzGraphClient.get().repository().refresh(handle);
+			for (CompareItem c : compare) if (c.handle != null && !c.handle.isBusy()) BzGraphClient.get().repository().refresh(c.handle);
+			return true;
+		}
+		if (productId != null && k == GLFW.GLFW_KEY_C) {
+			openCompareSearch();
 			return true;
 		}
 		return super.keyPressed(event);
@@ -382,20 +510,17 @@ public final class GraphScreen extends Screen implements BzScreen {
 			goForward();
 			return true;
 		}
+		if (event.button() == 0 && !compare.isEmpty() && event.y() >= py0 + PAD + 10 && event.y() <= py0 + PAD + 20) {
+			for (LegendHit h : legendHits) {
+				if (event.x() >= h.x0() && event.x() <= h.x1()) {
+					removeCompare(h.item());
+					return true;
+				}
+			}
+		}
 		if (event.button() == 0 && overAttribution(event.x(), event.y())) {
 			ConfirmLinkScreen.confirmLinkNow(this, BzGraphClient.COFL_URL);
 			return true;
-		}
-		JumpMarker jm = event.button() == 0 && hoveredCluster(event.x(), event.y()) == null ? hoveredJump(event.x(), event.y()) : null;
-		if (jm != null) {
-			JumpCauses.Explanation e = explain(jm.jump());
-			if (e.patches().size() == 1) {
-				minecraft.gui.setScreen(new PatchDetailScreen(this, nav, e.patches().getFirst(), productId, historyPoints(), range));
-				return true;
-			} else if (e.patches().size() > 1) {
-				openPatchList(e.patches());
-				return true;
-			}
 		}
 		Cluster c = event.button() == 0 ? hoveredCluster(event.x(), event.y()) : null;
 		if (c != null) {
@@ -418,13 +543,30 @@ public final class GraphScreen extends Screen implements BzScreen {
 		minecraft.gui.setScreen(new PatchListScreen(this, nav, preset, productId, historyPoints(), range));
 	}
 
+	/** Patch flag or line under the mouse (for clicks). */
 	private Cluster hoveredCluster(double mx, double my) {
-		for (Cluster c : clusters) {
-			double dx = Math.abs(mx - c.x());
-			if (dx <= 3 && my >= gy0 - 8 && my <= gy0 + 3) return c;
-			if (dx <= 1 && my >= gy0 && my <= gy1) return c;
-		}
+		Cluster c = hoveredFlag(mx, my);
+		return c != null ? c : hoveredPatchLine(mx, my);
+	}
+
+	/** The small flag above the plot: hovering it shows the full patch tooltip. */
+	private Cluster hoveredFlag(double mx, double my) {
+		for (Cluster c : clusters) if (Math.abs(mx - c.x()) <= 3 && my >= gy0 - 8 && my <= gy0 + 3) return c;
 		return null;
+	}
+
+	/** The patch line inside the plot: the price tooltip stays, with the patch title added. */
+	private Cluster hoveredPatchLine(double mx, double my) {
+		for (Cluster c : clusters) if (Math.abs(mx - c.x()) <= 1 && my >= gy0 && my <= gy1) return c;
+		return null;
+	}
+
+	/** One short line naming the patch(es) under the crosshair. */
+	private void addPatchHint(List<Component> lines, Cluster c) {
+		if (c == null) return;
+		String title = c.patches().size() == 1 ? font.plainSubstrByWidth(c.patches().getFirst().title(), 200)
+				: c.patches().size() + " patch notes";
+		lines.add(Component.literal("Patch: " + title + " (click)").withColor(c.relevant() ? COLOR_PATCH : 0xFFBBBBBB));
 	}
 
 	private boolean overAttribution(double mx, double my) {
@@ -480,7 +622,8 @@ public final class GraphScreen extends Screen implements BzScreen {
 				drawCentered(g, h.message(), COLOR_ERROR);
 			}
 		} else {
-			drawGraph(g, mouseX, mouseY);
+			if (compare.isEmpty()) drawGraph(g, mouseX, mouseY);
+			else drawCompareGraph(g, mouseX, mouseY);
 			drawStatusBadge(g, h);
 		}
 		super.extractRenderState(g, mouseX, mouseY, partialTick);
@@ -489,12 +632,14 @@ public final class GraphScreen extends Screen implements BzScreen {
 	private void drawHeader(GuiGraphicsExtractor g) {
 		String name = displayName != null && !displayName.isBlank() ? displayName : productId;
 		String title = name == null ? "BZgraph" : name;
-		if (productId != null && displayName != null && !productId.equals(displayName)) {
+		int maxW = (modeButton != null && modeButton.visible ? modeButton.getX() : compareButton != null ? compareButton.getX() : px1) - 6 - titleX();
+		if (productId != null && displayName != null && !productId.equals(displayName)
+				&& font.width(title + "  " + productId) <= maxW) {
 			g.text(font, Component.literal(title).append(Component.literal("  " + productId).withStyle(ChatFormatting.DARK_GRAY)), titleX(), py0 + PAD, COLOR_TEXT);
 		} else {
-			g.text(font, title, titleX(), py0 + PAD, COLOR_TEXT);
+			g.text(font, font.plainSubstrByWidth(title, Math.max(20, maxW)), titleX(), py0 + PAD, COLOR_TEXT);
 		}
-		if (times.length == 0) return;
+		if (times.length == 0 || !compare.isEmpty()) return;
 		int y = py0 + PAD + 11;
 		int x = px0 + PAD;
 		if (showBuy) x = drawStats(g, "Buy", buys, COLOR_BUY, x, y) + 16;
@@ -529,7 +674,7 @@ public final class GraphScreen extends Screen implements BzScreen {
 		boolean hover = overAttribution(mx, my);
 		Component c = Component.literal(ATTRIBUTION).withStyle(s -> s.withUnderlined(hover));
 		g.text(font, c, attrX, attrY, hover ? COLOR_TEXT : COLOR_LINK);
-		String hint = productId == null ? "" : "1-5 range · P patches · M mayors · J jumps · B band";
+		String hint = productId == null ? "" : "1-5 range · C compare · P patches · M mayors · B band";
 		int hx = px1 - PAD - font.width(hint);
 		if (hx > attrX + attrW + 8) g.text(font, hint, hx, attrY, 0xFF666666);
 	}
@@ -574,8 +719,9 @@ public final class GraphScreen extends Screen implements BzScreen {
 			}
 		}
 		int w = font.width(msg);
-		g.text(font, msg, px1 - PAD - w, py0 + PAD, color);
-		if (h.isBusy()) drawSpinnerSmall(g, px1 - PAD - w - 8, py0 + PAD + 3);
+		int right = (modeButton != null && modeButton.visible ? modeButton.getX() : compareButton.getX()) - 6;
+		g.text(font, msg, right - w, py0 + PAD - 2, color);
+		if (h.isBusy()) drawSpinnerSmall(g, right - w - 8, py0 + PAD + 1);
 	}
 
 	private void drawSpinnerSmall(GuiGraphicsExtractor g, int cx, int cy) {
@@ -623,11 +769,6 @@ public final class GraphScreen extends Screen implements BzScreen {
 			maxSells[i] = p.maxSell();
 		}
 		if (addLive) liveIndex = n - 1;
-		double[] mid = new double[n];
-		for (int i = 0; i < n; i++) {
-			mid[i] = Double.isNaN(buys[i]) ? sells[i] : Double.isNaN(sells[i]) ? buys[i] : (buys[i] + sells[i]) / 2;
-		}
-		jumps = JumpDetector.detect(times, mid, MAX_JUMPS);
 	}
 
 	private void drawGraph(GuiGraphicsExtractor g, int mx, int my) {
@@ -666,7 +807,35 @@ public final class GraphScreen extends Screen implements BzScreen {
 			String s = CoinFormat.compact(t);
 			g.text(font, s, gx0 - 4 - font.width(s), y - font.lineHeight / 2, COLOR_DIM);
 		}
-		// x labels
+		drawXAxis(g, tMin, tMax);
+
+		int w = gx1 - gx0 + 1;
+		// Day (bucket) low-high bands first, so the lines and markers sit on top of them.
+		boolean bands = BzGraphClient.get().config().showBands;
+		if (bands && showSell) drawBand(g, minSells, maxSells, tMin, tMax, w, lo, hi, COLOR_SELL);
+		if (bands && showBuy) drawBand(g, minBuys, maxBuys, tMin, tMax, w, lo, hi, COLOR_BUY);
+		if (showSell) drawSeries(g, Downsampler.columns(times, sells, tMin, tMax, w), lo, hi, COLOR_SELL, false);
+		if (showBuy) drawSeries(g, Downsampler.columns(times, buys, tMin, tMax, w), lo, hi, COLOR_BUY, false);
+
+		drawLiveMarker(g, tMin, tMax, lo, hi);
+		drawTradeMarkers(g, tMin, tMax, lo, hi);
+		drawPatchMarkers(g, tMin, tMax);
+		drawMayorBar(g, tMin, tMax);
+		Cluster hc = hoveredFlag(mx, my);
+		TradeCluster tc = hc == null ? hoveredTrade(mx, my) : null;
+		MayorSegment ms = hc == null && tc == null ? hoveredMayor(mx, my) : null;
+		if (hc != null) {
+			drawPatchTooltip(g, hc, mx, my);
+		} else if (tc != null) {
+			drawTradeTooltip(g, tc, mx, my);
+		} else if (ms != null) {
+			drawMayorTooltip(g, ms, mx, my);
+		} else if (mx >= gx0 && mx <= gx1 && my >= gy0 && my <= gy1) {
+			drawCrosshair(g, mx, my, tMin, tMax, lo, hi, hoveredPatchLine(mx, my));
+		}
+	}
+
+	private void drawXAxis(GuiGraphicsExtractor g, long tMin, long tMax) {
 		int labels = Math.max(2, (gx1 - gx0) / 70);
 		DateTimeFormatter fmt = xFormatter(tMax - tMin);
 		for (int i = 0; i <= labels; i++) {
@@ -680,35 +849,183 @@ public final class GraphScreen extends Screen implements BzScreen {
 		}
 		g.verticalLine(gx0, gy0, gy1, COLOR_AXIS);
 		g.horizontalLine(gx0, gx1, gy1, COLOR_AXIS);
+	}
 
+	// ---------------------------------------------------------------- comparing items
+
+	private String itemLabel() {
+		return displayName != null && !displayName.isBlank() ? displayName : BzGraphClient.get().trades().displayName(productId);
+	}
+
+	private List<Line> compareLines(long tMin) {
+		BzConfig.CompareMode mode = compareMode();
+		List<Line> out = new ArrayList<>();
+		if (mode == BzConfig.CompareMode.RATIO) {
+			CompareItem o = compare.getFirst();
+			if (o.t.length == 0) return out;
+			long gap = CompareMath.maxGap(o.t);
+			String label = itemLabel() + " \u00f7 " + o.name;
+			if (showBuy) out.add(new Line(label + " (buy)", COLOR_BUY, false, times, CompareMath.ratio(times, buys, o.t, o.buy, gap), null, CompareMath.maxGap(times)));
+			if (showSell) out.add(new Line(label + " (sell)", COLOR_SELL, false, times, CompareMath.ratio(times, sells, o.t, o.sell, gap), null, CompareMath.maxGap(times)));
+			return out;
+		}
+		addLines(out, mode, itemLabel(), COLOR_MAIN, times, buys, sells, tMin);
+		for (CompareItem c : compare) if (c.t.length > 0) addLines(out, mode, c.name, c.color, c.t, c.buy, c.sell, tMin);
+		return out;
+	}
+
+	private void addLines(List<Line> out, BzConfig.CompareMode mode, String name, int color, long[] t, double[] b, double[] s, long tMin) {
+		long gap = CompareMath.maxGap(t);
+		boolean pct = mode == BzConfig.CompareMode.PERCENT;
+		if (showBuy) out.add(new Line(name + " (buy)", color, false, t,
+				pct ? CompareMath.percent(b, CompareMath.baseline(t, b, tMin)) : b, b, gap));
+		if (showSell) out.add(new Line(name + " (sell)", color, true, t,
+				pct ? CompareMath.percent(s, CompareMath.baseline(t, s, tMin)) : s, s, gap));
+	}
+
+	private static String formatY(double v, BzConfig.CompareMode mode, double step) {
+		return switch (mode) {
+			case PERCENT -> String.format(Locale.ROOT, step < 1 ? "%+.1f%%" : "%+.0f%%", v);
+			case RATIO -> Math.abs(v) >= 1000 ? CoinFormat.compact(v) : String.format(Locale.ROOT, "%.3g", v);
+			case PRICE -> CoinFormat.compact(v);
+		};
+	}
+
+	private void drawCompareGraph(GuiGraphicsExtractor g, int mx, int my) {
+		for (CompareItem c : compare) c.build();
+		BzConfig.CompareMode mode = compareMode();
+		// common window: from where every item has data to the newest point
+		long tMin = times[0], tMax = times[times.length - 1];
+		for (CompareItem c : compare) {
+			if (c.t.length == 0) continue;
+			tMin = Math.max(tMin, c.t[0]);
+			tMax = Math.max(tMax, c.t[c.t.length - 1]);
+		}
+		if (tMin >= tMax) tMin = tMax - 1;
+		List<Line> lines = compareLines(tMin);
+		drawLegend(g, lines, mode);
+
+		boolean pct = mode == BzConfig.CompareMode.PERCENT;
+		double lo = pct ? 0 : Double.POSITIVE_INFINITY;
+		double hi = pct ? 0 : Double.NEGATIVE_INFINITY;
+		boolean any = false;
+		for (Line l : lines) {
+			for (int i = 0; i < l.t().length; i++) {
+				if (l.t()[i] < tMin || l.t()[i] > tMax || Double.isNaN(l.v()[i])) continue;
+				lo = Math.min(lo, l.v()[i]);
+				hi = Math.max(hi, l.v()[i]);
+				any = true;
+			}
+		}
+		if (!any) {
+			boolean loading = false;
+			for (CompareItem c : compare) loading |= c.t.length == 0;
+			drawCentered(g, loading ? "Loading\u2026" : "No overlapping data", COLOR_DIM);
+			return;
+		}
+		if (hi - lo < 1e-9) {
+			double pad = Math.max(Math.abs(hi) * 0.05, 0.1);
+			lo -= pad;
+			hi += pad;
+		}
+		double[] ticks = niceTicks(lo, hi, Math.max(2, (gy1 - gy0) / 30));
+		lo = Math.min(lo, ticks[0]);
+		hi = Math.max(hi, ticks[ticks.length - 1]);
+		double step = ticks.length > 1 ? ticks[1] - ticks[0] : 1;
+		for (double t : ticks) {
+			int y = yFor(t, lo, hi);
+			boolean zero = pct && Math.abs(t) < step / 2;
+			g.horizontalLine(gx0, gx1, y, zero ? 0x70FFFFFF : COLOR_GRID);
+			String s = formatY(t, mode, step);
+			g.text(font, s, gx0 - 4 - font.width(s), y - font.lineHeight / 2, COLOR_DIM);
+		}
+		drawXAxis(g, tMin, tMax);
 		int w = gx1 - gx0 + 1;
-		// Day (bucket) low-high bands first, so the lines and markers sit on top of them.
-		boolean bands = BzGraphClient.get().config().showBands;
-		if (bands && showSell) drawBand(g, minSells, maxSells, tMin, tMax, w, lo, hi, COLOR_SELL);
-		if (bands && showBuy) drawBand(g, minBuys, maxBuys, tMin, tMax, w, lo, hi, COLOR_BUY);
-		if (showSell) drawSeries(g, Downsampler.columns(times, sells, tMin, tMax, w), lo, hi, COLOR_SELL);
-		if (showBuy) drawSeries(g, Downsampler.columns(times, buys, tMin, tMax, w), lo, hi, COLOR_BUY);
+		for (Line l : lines.reversed()) drawSeries(g, Downsampler.columns(l.t(), l.v(), tMin, tMax, w), lo, hi, l.color(), l.dashed());
 
-		drawLiveMarker(g, tMin, tMax, lo, hi);
-		drawTradeMarkers(g, tMin, tMax, lo, hi);
-		drawJumpMarkers(g, tMin, tMax, lo, hi);
 		drawPatchMarkers(g, tMin, tMax);
 		drawMayorBar(g, tMin, tMax);
-		Cluster hc = hoveredCluster(mx, my);
-		JumpMarker jm = hc == null ? hoveredJump(mx, my) : null;
-		TradeCluster tc = hc == null && jm == null ? hoveredTrade(mx, my) : null;
-		MayorSegment ms = hc == null && jm == null && tc == null ? hoveredMayor(mx, my) : null;
+		tradeClusters = List.of();
+		Cluster hc = hoveredFlag(mx, my);
+		MayorSegment ms = hc == null ? hoveredMayor(mx, my) : null;
 		if (hc != null) {
 			drawPatchTooltip(g, hc, mx, my);
-		} else if (jm != null) {
-			drawJumpTooltip(g, jm, mx, my);
-		} else if (tc != null) {
-			drawTradeTooltip(g, tc, mx, my);
 		} else if (ms != null) {
 			drawMayorTooltip(g, ms, mx, my);
 		} else if (mx >= gx0 && mx <= gx1 && my >= gy0 && my <= gy1) {
-			drawCrosshair(g, mx, my, tMin, tMax, lo, hi);
+			long t = tMin + Math.round((double) (mx - gx0) / (gx1 - gx0) * (tMax - tMin));
+			g.verticalLine(mx, gy0, gy1, 0x90FFFFFF);
+			List<Component> tip = new ArrayList<>();
+			tip.add(Component.literal(FMT_TOOLTIP.format(Instant.ofEpochMilli(t).atZone(ZoneId.systemDefault()))).withColor(COLOR_TEXT));
+			for (Line l : lines) {
+				double v = CompareMath.valueAt(l.t(), l.v(), t, l.maxGap());
+				if (Double.isNaN(v)) continue;
+				dot(g, mx, yFor(v, lo, hi), l.color());
+				String val = mode == BzConfig.CompareMode.PRICE ? CoinFormat.full(v) : formatY(v, mode, 0.1);
+				net.minecraft.network.chat.MutableComponent line = Component.literal(l.dashed() ? "- - " : "\u2014 ").withColor(l.color())
+						.append(Component.literal(l.label() + ": ").withColor(COLOR_DIM))
+						.append(Component.literal(val).withColor(COLOR_TEXT));
+				if (pct && l.raw() != null) {
+					line.append(Component.literal("  " + CoinFormat.compact(CompareMath.valueAt(l.t(), l.raw(), t, l.maxGap()))).withColor(COLOR_DIM));
+				}
+				tip.add(line);
+			}
+			addPatchHint(tip, hoveredPatchLine(mx, my));
+			g.setComponentTooltipForNextFrame(font, tip, mx, my);
 		}
+	}
+
+	/** Header line 2 in compare mode: one entry per item with its change over the range; clicking a compared item removes it. */
+	private void drawLegend(GuiGraphicsExtractor g, List<Line> lines, BzConfig.CompareMode mode) {
+		int y = py0 + PAD + 11;
+		int x = px0 + PAD;
+		boolean ratio = mode == BzConfig.CompareMode.RATIO;
+		List<LegendHit> hits = new ArrayList<>();
+		if (ratio && !lines.isEmpty()) {
+			double[] fl = firstLast(lines.getFirst().v());
+			Component c = Component.literal("Ratio ").withColor(COLOR_DIM)
+					.append(Component.literal(formatY(fl[1], mode, 1)).withColor(COLOR_TEXT))
+					.append(changeText(fl[0], fl[1]));
+			g.text(font, c, x, y, COLOR_TEXT);
+			x += font.width(c) + 12;
+		}
+		x = legendEntry(g, x, y, itemLabel(), COLOR_MAIN, ratio ? null : seriesChange(showBuy ? buys : sells), false);
+		for (CompareItem c : compare) {
+			int x0 = x;
+			x = legendEntry(g, x, y, c.name, c.color, ratio || c.t.length == 0 ? null : seriesChange(showBuy ? c.buy : c.sell), true);
+			hits.add(new LegendHit(x0, x - 10, c));
+		}
+		legendHits = hits;
+	}
+
+	private int legendEntry(GuiGraphicsExtractor g, int x, int y, String name, int color, Component change, boolean removable) {
+		net.minecraft.network.chat.MutableComponent c = Component.literal("\u25a0 ").withColor(color)
+				.append(Component.literal(font.plainSubstrByWidth(name, 110)).withColor(COLOR_TEXT));
+		if (change != null) c.append(change);
+		if (removable) c.append(Component.literal(" \u2715").withColor(0xFFFF7777));
+		g.text(font, c, x, y, COLOR_TEXT);
+		return x + font.width(c) + 10;
+	}
+
+	private static double[] firstLast(double[] v) {
+		double first = Double.NaN, last = Double.NaN;
+		for (double d : v) {
+			if (Double.isNaN(d)) continue;
+			if (Double.isNaN(first)) first = d;
+			last = d;
+		}
+		return new double[]{first, last};
+	}
+
+	private static Component seriesChange(double[] v) {
+		double[] fl = firstLast(v);
+		return changeText(fl[0], fl[1]);
+	}
+
+	private static Component changeText(double first, double last) {
+		if (Double.isNaN(first) || Double.isNaN(last) || first == 0) return Component.empty();
+		double pct = (last / first - 1) * 100;
+		return Component.literal(String.format(Locale.ROOT, " %+.1f%%", pct)).withColor(pct >= 0 ? 0xFF55FF55 : 0xFFFF5555);
 	}
 
 	// ---------------------------------------------------------------- mayors
@@ -779,110 +1096,6 @@ public final class GraphScreen extends Screen implements BzScreen {
 		}
 		lines.add(Component.literal("Mayor data: SkyCofl").withColor(0xFF666666));
 		g.setComponentTooltipForNextFrame(font, lines, mx, my);
-	}
-
-	// ---------------------------------------------------------------- price jumps
-
-	private JumpCauses.Explanation explain(JumpDetector.Jump j) {
-		BzGraphClient c = BzGraphClient.get();
-		return JumpCauses.explain(j.time(), productId, c.itemAreas().of(productId), c.patches().current(), c.mayors().current());
-	}
-
-	private void drawJumpMarkers(GuiGraphicsExtractor g, long tMin, long tMax, double lo, double hi) {
-		jumpMarkers = List.of();
-		if (!BzGraphClient.get().config().showJumps || jumps.isEmpty()) return;
-		List<JumpMarker> out = new ArrayList<>();
-		for (JumpDetector.Jump j : jumps) {
-			long ms = j.time().toEpochMilli();
-			if (ms < tMin || ms > tMax) continue;
-			int x = xForTime(ms, tMin, tMax);
-			double price = j.fromPrice();
-			int y = Double.isNaN(price) ? gy0 + 8 : Math.max(gy0 + 6, Math.min(gy1 - 6, yFor(price, lo, hi)));
-			// warning triangle above the line, with a thin stem down to where the move starts
-			int tip = Math.max(gy0 + 1, y - 17);
-			if (tip + 9 < y) g.verticalLine(x, tip + 9, y - 1, 0x80FFD43B);
-			g.fill(x - 1, y - 1, x + 2, y + 2, 0xFF000000);
-			g.fill(x, y, x + 1, y + 1, COLOR_JUMP);
-			warningTriangle(g, x, tip);
-			out.add(new JumpMarker(x, tip + 4, j));
-		}
-		jumpMarkers = out;
-	}
-
-	/** 15x8 pixel-art warning sign: black outline, yellow fill, black "!" (drawn with fills for crisp pixels). */
-	private static void warningTriangle(GuiGraphicsExtractor g, int x, int tip) {
-		for (int r = 0; r < 8; r++) g.fill(x - r, tip + r, x + r + 1, tip + r + 1, 0xFF000000);
-		for (int r = 2; r < 7; r++) g.fill(x - (r - 1), tip + r, x + r, tip + r + 1, COLOR_JUMP);
-		g.fill(x, tip + 3, x + 1, tip + 5, 0xFF000000); // stem of "!"
-		g.fill(x, tip + 6, x + 1, tip + 7, 0xFF000000); // dot
-	}
-
-	private JumpMarker hoveredJump(double mx, double my) {
-		for (JumpMarker m : jumpMarkers) if (Math.abs(mx - m.x()) <= 7 && Math.abs(my - m.y()) <= 6) return m;
-		return null;
-	}
-
-	private void drawJumpTooltip(GuiGraphicsExtractor g, JumpMarker m, int mx, int my) {
-		JumpDetector.Jump j = m.jump();
-		JumpCauses.Explanation e = explain(j);
-		ZoneId zone = ZoneId.systemDefault();
-		int wrap = Math.max(170, Math.min(270, width / 3));
-		List<FormattedCharSequence> lines = new ArrayList<>();
-		lines.add(Component.literal(String.format(Locale.ROOT, "Price %+.0f%%", j.pct())).withColor(j.pct() >= 0 ? 0xFF55FF55 : 0xFFFF5555)
-				.append(Component.literal("  from " + FMT_TRADE.format(j.time().atZone(zone))).withColor(COLOR_DIM)).getVisualOrderText());
-		lines.add(Component.literal(CoinFormat.compact(j.fromPrice()) + " -> " + CoinFormat.compact(j.toPrice())).withColor(COLOR_TEXT).getVisualOrderText());
-		if (e.isEmpty()) {
-			lines.add(Component.literal("No related patch note or mayor change nearby.").withColor(COLOR_DIM).getVisualOrderText());
-			addMayorThen(lines, e, wrap);
-		} else {
-			lines.add(Component.literal("Possible causes:").withColor(COLOR_JUMP).getVisualOrderText());
-			for (PatchNote p : e.patches()) {
-				boolean item = p.affects(productId);
-				String head = PatchDetailScreen.DATE.format(p.date().atZone(zone)) + "  " + p.title();
-				for (FormattedCharSequence l : font.split(Component.literal((item ? "★ " : "• ") + head)
-						.withColor(item ? COLOR_PATCH : 0xFFDDDDDD), wrap)) lines.add(l);
-				String note = p.noteFor(productId);
-				if (note != null) {
-					List<FormattedCharSequence> nl = font.split(Component.literal("   " + note).withColor(0xFFFFBBFF), wrap);
-					lines.addAll(nl.subList(0, Math.min(3, nl.size())));
-				}
-			}
-			if (e.change() != null) {
-				MayorHistory.Term t = e.change().term();
-				String when = "  (" + PatchDetailScreen.DATE.format(t.start().atZone(zone)) + ")";
-				if (e.change().mayorRelevant()) {
-					String perks = t.perks().isEmpty() ? "" : ": " + String.join(", ", t.perks());
-					for (FormattedCharSequence l : font.split(Component.literal("• New mayor " + t.mayor() + perks + when)
-							.withColor(mayorColor(t) | 0xFF404040), wrap)) lines.add(l);
-				}
-				if (e.change().ministerRelevant()) {
-					String perk = t.ministerPerk() == null ? "" : ": " + t.ministerPerk();
-					for (FormattedCharSequence l : font.split(Component.literal("• New minister " + t.minister() + perk + when)
-							.withColor(colorFor(t.ministerCategory(), t.minister()) | 0xFF404040), wrap)) lines.add(l);
-				}
-			} else {
-				addMayorThen(lines, e, wrap);
-			}
-			lines.add(Component.literal("Timing matches, not proof." + (e.patches().isEmpty() ? "" : "  Click to read."))
-					.withColor(0xFF777777).getVisualOrderText());
-		}
-		g.setTooltipForNextFrame(font, lines, mx, my);
-	}
-
-	/** "In office then: ..." when the sitting mayor/minister is relevant to this item (context, not a change). */
-	private void addMayorThen(List<FormattedCharSequence> lines, JumpCauses.Explanation e, int wrap) {
-		MayorHistory.Term t = e.mayorAtTime();
-		if (t == null) return;
-		Set<dev.bzgraph.core.ItemAreas.Area> areas = BzGraphClient.get().itemAreas().of(productId);
-		List<String> parts = new ArrayList<>();
-		if (dev.bzgraph.core.ItemAreas.relevant(t.category(), areas)) parts.add("mayor " + t.mayor());
-		if (t.minister() != null && dev.bzgraph.core.ItemAreas.relevant(t.ministerCategory(), areas)) {
-			parts.add("minister " + t.minister() + (t.ministerPerk() == null ? "" : " (" + t.ministerPerk() + ")"));
-		}
-		if (parts.isEmpty()) return;
-		for (FormattedCharSequence l : font.split(Component.literal("In office then: " + String.join(", ", parts)).withColor(COLOR_DIM), wrap)) {
-			lines.add(l);
-		}
 	}
 
 	// ---------------------------------------------------------------- your trades
@@ -1006,7 +1219,7 @@ public final class GraphScreen extends Screen implements BzScreen {
 
 	private TradeCluster hoveredTrade(double mx, double my) {
 		TradeCluster best = null;
-		double bestD = 7;
+		double bestD = 5;
 		for (TradeCluster c : tradeClusters) {
 			double cy = c.y() + (c.side() == Trade.Side.SELL ? -2 : 2);
 			double d = Math.hypot(mx - c.x(), my - cy);
@@ -1180,7 +1393,7 @@ public final class GraphScreen extends Screen implements BzScreen {
 	}
 
 	/** Draws a 1px polyline from per-column aggregates using only axis-aligned fills. */
-	private void drawSeries(GuiGraphicsExtractor g, Downsampler.Columns c, double lo, double hi, int color) {
+	private void drawSeries(GuiGraphicsExtractor g, Downsampler.Columns c, double lo, double hi, int color, boolean dashed) {
 		int prevCol = -1;
 		double prevVal = Double.NaN;
 		for (int col = 0; col < c.width(); col++) {
@@ -1194,11 +1407,11 @@ public final class GraphScreen extends Screen implements BzScreen {
 				for (int k = 1; k <= span; k++) {
 					double v = from + (to - from) * k / span;
 					int y = yFor(v, lo, hi);
-					vline(g, gx0 + prevCol + k, yPrev, y, color);
+					if (!dashed || ((prevCol + k) / 3) % 2 == 0) vline(g, gx0 + prevCol + k, yPrev, y, color);
 					yPrev = y;
 				}
 			}
-			vline(g, x, yFor(c.min()[col], lo, hi), yFor(c.max()[col], lo, hi), color);
+			if (!dashed || (col / 3) % 2 == 0) vline(g, x, yFor(c.min()[col], lo, hi), yFor(c.max()[col], lo, hi), color);
 			prevCol = col;
 			prevVal = c.last()[col];
 		}
@@ -1208,7 +1421,7 @@ public final class GraphScreen extends Screen implements BzScreen {
 		g.fill(x, Math.min(y0, y1), x + 1, Math.max(y0, y1) + 1, color);
 	}
 
-	private void drawCrosshair(GuiGraphicsExtractor g, int mx, int my, long tMin, long tMax, double lo, double hi) {
+	private void drawCrosshair(GuiGraphicsExtractor g, int mx, int my, long tMin, long tMax, double lo, double hi, Cluster patch) {
 		long t = tMin + Math.round((double) (mx - gx0) / (gx1 - gx0) * (tMax - tMin));
 		int idx = Arrays.binarySearch(times, t);
 		if (idx < 0) {
@@ -1238,6 +1451,7 @@ public final class GraphScreen extends Screen implements BzScreen {
 		lines.add(Component.literal("Sell: ").withColor(COLOR_SELL).append(Component.literal(CoinFormat.full(sells[idx])).withColor(COLOR_TEXT))
 				.append(Component.literal(sellRange == null ? "" : "  (" + sellRange + ")").withColor(COLOR_DIM)));
 		lines.add(Component.literal("Volume: ").withColor(COLOR_DIM).append(Component.literal(CoinFormat.compact(vols[idx])).withColor(COLOR_TEXT)));
+		addPatchHint(lines, patch);
 		g.setComponentTooltipForNextFrame(font, lines, mx, my);
 	}
 

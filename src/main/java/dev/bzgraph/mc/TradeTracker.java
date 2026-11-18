@@ -43,6 +43,8 @@ public final class TradeTracker {
 	private final Path namesCache;
 	private final AtomicBoolean namesLoading = new AtomicBoolean();
 	private int ticks;
+	/** Product ID -> display name from Hypixel's item list (empty until loaded). */
+	private volatile Map<String, String> displayNames = Map.of();
 
 	public TradeTracker(Path configDir, ApiClient api, Executor io) {
 		this.api = api;
@@ -103,6 +105,24 @@ public final class TradeTracker {
 		}, io);
 	}
 
+	/** All of this account's trades, oldest first. */
+	public List<Trade> all() {
+		return service.store().trades(account());
+	}
+
+	/** "Enchanted Diamond" for ENCHANTED_DIAMOND (from Hypixel's item list, else the ID in title case). */
+	public String displayName(String productId) {
+		String n = displayNames.get(productId);
+		if (n != null) return n.replaceAll("§.", "");
+		StringBuilder sb = new StringBuilder();
+		for (String w : productId.toLowerCase(java.util.Locale.ROOT).split("_")) {
+			if (w.isEmpty()) continue;
+			if (!sb.isEmpty()) sb.append(' ');
+			sb.append(Character.toUpperCase(w.charAt(0))).append(w.substring(1));
+		}
+		return sb.toString();
+	}
+
 	public List<Trade> forProduct(String productId) {
 		return service.forProduct(account(), productId);
 	}
@@ -124,6 +144,7 @@ public final class TradeTracker {
 				BzGraphClient.LOGGER.warn("Could not load item names for trade markers: {}", err.toString());
 				namesLoading.set(false); // try again next time a graph opens
 			} else {
+				displayNames = Map.copyOf(names);
 				service.setNames(ProductNames.build(products, names));
 			}
 		});

@@ -79,13 +79,6 @@ public final class MayorHistory {
 		return out;
 	}
 
-	/** Terms that started within [from, to] (a change of mayor in that window). */
-	public List<Term> startedBetween(Instant from, Instant to) {
-		List<Term> out = new ArrayList<>();
-		for (Term t : terms) if (!t.start().isBefore(from) && !t.start().isAfter(to)) out.add(t);
-		return out;
-	}
-
 	/** Parses the JSON array; entries without a winner or with unreadable dates are skipped. */
 	public static MayorHistory parse(String json) {
 		JsonElement root = JsonParser.parseString(json);

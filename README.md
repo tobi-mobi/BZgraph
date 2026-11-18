@@ -30,17 +30,8 @@ Client-side Fabric mod for **Minecraft 26.2** that shows an in-game price-histor
   - Y-axis with compact coin formatting (`950`, `1.2k`, `3.4M`, `1.5B`), date x-axis.
   - Header with current / min / max for each visible series.
   - Loading spinner, "Refreshing…" badge, and clear errors: offline, rate limited (auto-retry), not a bazaar item, no data.
-- **Why did the price move?**
-  - **Mayor bar** under the graph: who was mayor (and minister) at each point, coloured by type; hover for perks.
-    Toggle with `M`. Mayor data: SkyCofl.
-  - **Jump markers** (yellow warning sign): unusually large moves for that item (at least 8%, and several times its
-    normal wobble) are flagged. Hover lists possible causes, filtered for relevance:
-    - patch notes from up to 5 days before that mention the item (★), plus big updates/release candidates, which shift
-      where players spend their time; small bug-fix posts that don't mention the item are left out;
-    - a *new* mayor or minister whose perks touch this kind of item (e.g. Cole for mining items, Finnegan for farming,
-      Marina for fishing; Derpy/Jerry for everything). An item's area comes from Hypixel's collections list plus
-      keyword rules.
-    Click to read the patch. Toggle with `J`. These are timing matches, not proof.
+- **Mayor bar** under the graph: who was mayor (and minister) at each point, coloured by type; hover for perks.
+  Toggle with `M`. Mayor data: SkyCofl.
 - **Mini chart in the bazaar**: on an item's page in Hypixel's bazaar, a small chart (buy/sell lines, band, current
   prices and change over the range) appears left of the window. Click it for the full graph; right-click to change
   its range. Turn it off with `"miniChart": false`.
@@ -53,6 +44,22 @@ Client-side Fabric mod for **Minecraft 26.2** that shows an in-game price-histor
 - **Your trades on the graph**: ▼ where you sold and ▲ where you bought, at the price you got. Hover for amount, price,
   coins, time and how the price has moved since. Nearby trades merge into one marker. "Trades: On/Off" button.
   See [Your trades](#your-trades).
+- **Compare items**: **+ Compare** (or `C`) on a graph adds up to 3 more bazaar items (search by name or ID), or
+  `/bzgraph compare ENCHANTED_DIAMOND DIAMOND ...`. Each item gets its own colour; buy is a solid line, sell dashed
+  (the Buy / Sell buttons apply to all). The mode button switches between:
+  - **% change** (default): every line starts at 0% at the left edge, so a 5-coin and a 5M item can be compared;
+  - **Price**: actual prices on one axis;
+  - **Ratio** (two items): first ÷ second, e.g. Enchanted Diamond ÷ Diamond for craft flips.
+  The header shows each item's change over the range; click a compared item there to remove it. Bands and trade
+  markers are hidden while comparing.
+- **Purse graph**: `/bzgraph purse` or the **Purse** button on a graph. BZgraph reads the `Purse:` line of the
+  SkyBlock sidebar once a second, so every change counts (bazaar, auction house, NPCs, mobs, ...); bank coins
+  aren't in the sidebar and aren't included. Changes of 1,000+ coins (or 0.1% of the purse) are saved right away,
+  smaller ones at most once a minute. Kept per account and SkyBlock profile (from the "You are playing on profile"
+  message or the tab list; the profile button switches), in `config/bzgraph/purse.json`; points older than two
+  weeks are thinned to each hour's first/lowest/highest/last value. Your bazaar trades of all items are marked on
+  it, and the header shows coins in/out from the bazaar over the range. History starts when you install this
+  version. Turn off with `"trackPurse": false`.
 - Only active on Hypixel (server address contains `hypixel.net`) — configurable.
 
 ## Keybind
@@ -80,7 +87,9 @@ Client-side Fabric mod for **Minecraft 26.2** that shows an in-game price-histor
   "miniChartRange": "1W",
   "backgroundOpacity": 65,
   "showMayors": true,
-  "showJumps": true
+  "trackPurse": true,
+  "purseRange": "1W",
+  "compareMode": "PERCENT"
 }
 ```
 
@@ -170,7 +179,8 @@ Requires **JDK 25**.
 The mod jar is written to `build/libs/bzgraph-<version>.jar`. Requires Fabric Loader ≥ 0.20.1 and Fabric API.
 
 Unit tests (`./gradlew test`) cover JSON parsing and timestamp handling, merging/deduping the two ALL-range responses,
-request-queue spacing, cache TTL, disk/LRU caches, coin formatting and item-ID mapping.
+request-queue spacing, cache TTL, disk/LRU caches, coin formatting, item-ID mapping, comparison maths (% change,
+ratios) and purse reading/recording.
 
 ## Credits
 

@@ -39,8 +39,12 @@ public final class BzConfig {
 	public int backgroundOpacity = 65;
 	/** Strip under the graph showing who was mayor (and minister) when (M). Data: SkyCofl. */
 	public boolean showMayors = true;
-	/** Flag unusually large price moves and list possible causes (J). */
-	public boolean showJumps = true;
+	/** Record the purse from SkyBlock's sidebar (per account and profile) for the purse graph. */
+	public boolean trackPurse = true;
+	/** Range of the purse graph (1D, 1W, 1M, 1Y, ALL). */
+	public String purseRange = "1W";
+	/** How compared items are drawn: PERCENT (change from the start of the range), PRICE, or RATIO (two items). */
+	public String compareMode = "PERCENT";
 	/** On startup, import trades from this Minecraft instance's older log files (each file only once). */
 	public boolean importLogsOnStartup = true;
 
@@ -73,6 +77,21 @@ public final class BzConfig {
 		int pct = Math.max(0, Math.min(100, backgroundOpacity));
 		int alpha = (int) Math.round(pct / 100.0 * 255 * factor);
 		return (Math.max(0, Math.min(255, alpha)) << 24) | (rgb & 0xFFFFFF);
+	}
+
+	public enum CompareMode { PERCENT, PRICE, RATIO }
+
+	public CompareMode compareMode() {
+		try {
+			return CompareMode.valueOf(compareMode.trim().toUpperCase(java.util.Locale.ROOT));
+		} catch (RuntimeException e) {
+			return CompareMode.PERCENT;
+		}
+	}
+
+	public TimeRange purseRange() {
+		TimeRange r = TimeRange.fromLabel(purseRange);
+		return r == null ? TimeRange.WEEK : r;
 	}
 
 	public Markers patchMarkers() {
