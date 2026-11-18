@@ -41,8 +41,8 @@ final class GraphUi {
 	/** Dims the world behind the screen, then draws the (mostly opaque) panel so game text doesn't show through. */
 	static void panel(GuiGraphicsExtractor g, BzConfig cfg, int screenW, int screenH, int x0, int y0, int x1, int y1) {
 		double pct = Math.max(0, Math.min(100, cfg.backgroundOpacity)) / 100.0;
-		g.fill(0, 0, screenW, screenH, (int) Math.round(pct * 0x90) << 24);
-		int alpha = (int) Math.min(255, Math.round(pct * 255 * 1.45)); // the default 65% gives ~94%
+		g.fill(0, 0, screenW, screenH, (int) Math.round(pct * 0x60) << 24);
+		int alpha = (int) Math.min(255, Math.round(pct * 255 * 1.27)); // the default 65% gives ~82%: slightly see-through
 		g.fill(x0, y0, x1, y1, (alpha << 24) | COLOR_PANEL_BG);
 		g.outline(x0, y0, x1 - x0, y1 - y0, COLOR_PANEL_BORDER);
 	}
@@ -198,7 +198,7 @@ final class GraphUi {
 				{"sell", "You sold this item (insta-sell or a filled sell offer)"},
 				{"patch", "Patch note that mentions the item (hover, click to read)"},
 				{"mayor", "Mayor bar: who was mayor then (hover for perks)"},
-				{"keys", "1-5 range · C compare · P patches · M mayors · B band · R refresh"},
+				{"keys", "1-5 range · S favourite · F search · C compare · P patches · M mayors · B band · R refresh"},
 				{"head", "Data sources"},
 				{"link", "Prices and mayor history: SkyCofl, sky.coflnet.com (click)"},
 				{"src", "Bazaar item list: Hypixel API"},

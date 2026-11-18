@@ -17,6 +17,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -26,6 +27,7 @@ import org.lwjgl.glfw.GLFW;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -158,37 +160,161 @@ public final class BazaarMiniChart {
 		Font font = Minecraft.getInstance().font;
 		boolean hover = mx >= x0 && mx <= x1 && my >= y0 && my <= y1;
 
+		String hint = hover ? "Click: full graph  \u00b7  Right: range" : "Click for full graph";
+		drawCard(g, font, x0, y0, x1, y1, productName, handle, range, hint, hover, 0, mx, my);
+	}
+
+	/**
+	 * A mini chart card: item name, range, current prices with their change, the chart, and an optional
+	 * hint line. Shared by the bazaar page and the favourites grid. With the mouse ({@code mx}, {@code my}) over
+	 * the chart it shows the price there; pass -1 to skip that.
+	 */
+	static void drawCard(GuiGraphicsExtractor g, Font font, int x0, int y0, int x1, int y1, String name,
+						 HistoryHandle handle, TimeRange range, String hint, boolean hover,
+						 int rightInset, int mx, int my) {
 		BzConfig cfg = BzGraphClient.get().config();
 		g.fill(x0, y0, x1, y1, cfg.background(COLOR_BG, 1.0));
-		int border = hover ? 0xFF6A6A78 : COLOR_BORDER;
-		g.horizontalLine(x0, x1 - 1, y0, border);
-		g.horizontalLine(x0, x1 - 1, y1 - 1, border);
-		g.verticalLine(x0, y0, y1 - 1, border);
-		g.verticalLine(x1 - 1, y0, y1 - 1, border);
-
+		g.outline(x0, y0, x1 - x0, y1 - y0, hover ? 0xFF6A6A78 : COLOR_BORDER);
+		int tx = x0 + 5;
 		String label = range.label();
-		g.text(font, label, x1 - 5 - font.width(label), y0 + 5, COLOR_DIM);
-		g.text(font, font.plainSubstrByWidth(productName, x1 - x0 - 14 - font.width(label)), x0 + 5, y0 + 5, 0xFFFFFFFF);
+		// rightInset keeps the top-right corner free (the favourites grid puts its remove button there)
+		g.text(font, label, x1 - 5 - rightInset - font.width(label), y0 + 5, COLOR_DIM);
+		g.text(font, font.plainSubstrByWidth(name == null ? "" : name, x1 - tx - 10 - rightInset - font.width(label)), tx, y0 + 5, 0xFFFFFFFF);
 
-		List<PricePoint> pts = points();
-		int cx0 = x0 + 5, cx1 = x1 - 6, cy0 = y0 + 30, cy1 = y1 - 14;
-		if (pts.size() < 2) {
+		int cx0 = x0 + 5, cx1 = x1 - 6, cy0 = y0 + 28, cy1 = y1 - (hint == null ? 6 : 14);
+		Built b = built(handle, cx1 - cx0 + 1, cy1 - cy0);
+		if (b.n < 2) {
 			String msg = handle == null || handle.isBusy() ? "Loading…" : handle.status() == HistoryHandle.Status.READY ? "No data" : handle.message();
 			g.centeredText(font, font.plainSubstrByWidth(msg, x1 - x0 - 10), (x0 + x1) / 2, (cy0 + cy1) / 2 - 4, COLOR_DIM);
 		} else {
-			drawPrices(g, font, pts);
-			drawChart(g, pts, cx0, cy0, cx1, cy1);
+			int x = priceLabel(g, font, "B ", b.buyText, b.buyPct, b.buyPctColor, COLOR_BUY, tx, y0 + 16) + 8;
+			priceLabel(g, font, "S ", b.sellText, b.sellPct, b.sellPctColor, COLOR_SELL, x, y0 + 16);
+			g.fill(cx0, cy0, cx1 + 1, cy1 + 1, cfg.background(0x000000, 0.4));
+			// the whole chart is one texture: one draw call, however busy the price history is
+			if (b.texture != null) g.blit(RenderPipelines.GUI_TEXTURED, b.textureId, cx0, cy0, 0, 0, b.w, b.h + 1, b.w, b.h + 1);
+			if (mx >= cx0 && mx <= cx1 && my >= cy0 && my <= cy1) drawHover(g, font, b, cx0, cy0, mx, my);
 		}
-		String hint = hover ? "Click: full graph  ·  Right: range" : "Click for full graph";
-		g.text(font, font.plainSubstrByWidth(hint, x1 - x0 - 10), x0 + 5, y1 - 11, 0xFF666666);
+		if (hint != null) g.text(font, font.plainSubstrByWidth(hint, x1 - x0 - 10), x0 + 5, y1 - 11, 0xFF888888);
 	}
 
-	/** History plus the latest-price snapshot (if newer). */
-	private List<PricePoint> points() {
-		CachedHistory d = handle == null ? null : handle.data();
+	private static final java.time.format.DateTimeFormatter FMT_HOVER =
+			java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.ROOT);
+
+	/** Crosshair at the nearest sample with its date, buy, sell and spread. */
+	private static void drawHover(GuiGraphicsExtractor g, Font font, Built b, int cx0, int cy0, int mx, int my) {
+		long tAt = b.tMin + Math.round((double) (mx - cx0) / Math.max(1, b.w - 1) * (b.tMax - b.tMin));
+		int i = java.util.Arrays.binarySearch(b.t, tAt);
+		if (i < 0) {
+			int ins = -i - 1;
+			i = ins <= 0 ? 0 : ins >= b.t.length ? b.t.length - 1 : (tAt - b.t[ins - 1] <= b.t[ins] - tAt ? ins - 1 : ins);
+		}
+		int px = cx0 + (int) Math.round((double) (b.t[i] - b.tMin) / Math.max(1, b.tMax - b.tMin) * (b.w - 1));
+		g.verticalLine(px, cy0, cy0 + b.h, 0x90FFFFFF);
+		if (!Double.isNaN(b.sell[i])) GraphUi.dot(g, px, cy0 + y(b.sell[i], b.lo, b.hi, b.h), COLOR_SELL);
+		if (!Double.isNaN(b.buy[i])) GraphUi.dot(g, px, cy0 + y(b.buy[i], b.lo, b.hi, b.h), COLOR_BUY);
+		List<net.minecraft.network.chat.Component> lines = new ArrayList<>();
+		lines.add(net.minecraft.network.chat.Component.literal(FMT_HOVER.format(
+				java.time.Instant.ofEpochMilli(b.t[i]).atZone(java.time.ZoneId.systemDefault()))).withColor(0xFFFFFFFF));
+		lines.add(net.minecraft.network.chat.Component.literal("Buy:  ").withColor(COLOR_BUY)
+				.append(net.minecraft.network.chat.Component.literal(CoinFormat.price(b.buy[i])).withColor(0xFFFFFFFF)));
+		lines.add(net.minecraft.network.chat.Component.literal("Sell: ").withColor(COLOR_SELL)
+				.append(net.minecraft.network.chat.Component.literal(CoinFormat.price(b.sell[i])).withColor(0xFFFFFFFF)));
+		if (!Double.isNaN(b.buy[i]) && !Double.isNaN(b.sell[i]) && b.sell[i] > 0) {
+			double sp = b.buy[i] - b.sell[i];
+			lines.add(net.minecraft.network.chat.Component.literal("Spread: ").withColor(COLOR_DIM)
+					.append(net.minecraft.network.chat.Component.literal(CoinFormat.compact(sp)
+							+ String.format(Locale.ROOT, " (%.1f%%)", sp / b.sell[i] * 100)).withColor(0xFFFFFFFF)));
+		}
+		g.setComponentTooltipForNextFrame(font, lines, mx, my);
+	}
+
+	// ---------------------------------------------------------------- cached chart texture
+
+	/**
+	 * Everything a card needs from its data, worked out once whenever the data, the size or the band setting
+	 * changes: the price labels, the samples (for hovering) and the chart itself, painted into a small texture.
+	 * Drawing a card is then a few texts and one image.
+	 */
+	private static final class Built {
+		CachedHistory data;
+		PricePoint live;
+		int w, h;
+		boolean bands;
+		int n;
+		String buyText = "", sellText = "", buyPct = "", sellPct = "";
+		int buyPctColor, sellPctColor;
+		long[] t = new long[0];
+		double[] buy = new double[0], sell = new double[0];
+		double lo, hi;
+		long tMin, tMax;
+		net.minecraft.client.renderer.texture.DynamicTexture texture;
+		net.minecraft.resources.Identifier textureId;
+		long lastUsed;
+
+		void release() {
+			if (texture != null) Minecraft.getInstance().getTextureManager().release(textureId);
+			texture = null;
+		}
+	}
+
+	private static final Built EMPTY = new Built();
+	/** Per history; textures of charts not drawn for a while are freed (see {@link #sweep}). */
+	private static final Map<HistoryHandle, Built> CACHE = new java.util.HashMap<>();
+	private static long lastSweep;
+	private static int textureCounter;
+
+	private static Built built(HistoryHandle handle, int w, int h) {
+		if (handle == null || w < 2 || h < 2) return EMPTY;
+		long now = System.currentTimeMillis();
+		sweep(now);
+		CachedHistory d = handle.data();
+		PricePoint live = handle.live();
+		boolean bands = BzGraphClient.get().config().showBands;
+		Built b = CACHE.get(handle);
+		if (b != null && b.data == d && b.live == live && b.w == w && b.h == h && b.bands == bands) {
+			b.lastUsed = now;
+			return b;
+		}
+		if (b != null) b.release();
+		b = new Built();
+		b.lastUsed = now;
+		b.data = d;
+		b.live = live;
+		b.w = w;
+		b.h = h;
+		b.bands = bands;
+		List<PricePoint> pts = points(d, live);
+		b.n = pts.size();
+		if (b.n >= 2) {
+			PricePoint last = pts.getLast();
+			b.buyText = CoinFormat.compact(last.buy());
+			b.sellText = CoinFormat.compact(last.sell());
+			double cb = change(pts, true), cs = change(pts, false);
+			b.buyPct = Double.isNaN(cb) ? "" : String.format(Locale.ROOT, " %+.1f%%", cb);
+			b.sellPct = Double.isNaN(cs) ? "" : String.format(Locale.ROOT, " %+.1f%%", cs);
+			b.buyPctColor = cb >= 0 ? 0xFF55FF55 : 0xFFFF5555;
+			b.sellPctColor = cs >= 0 ? 0xFF55FF55 : 0xFFFF5555;
+			paint(b, pts);
+		}
+		CACHE.put(handle, b);
+		return b;
+	}
+
+	/** Frees the textures of charts that haven't been drawn for 10 seconds (closed screens, old ranges). */
+	private static void sweep(long now) {
+		if (now - lastSweep < 5000) return;
+		lastSweep = now;
+		CACHE.values().removeIf(b -> {
+			if (now - b.lastUsed < 10_000) return false;
+			b.release();
+			return true;
+		});
+	}
+
+	/** History plus the latest-price snapshot (if newer), at an even level of detail. */
+	private static List<PricePoint> points(CachedHistory d, PricePoint live) {
 		if (d == null) return List.of();
 		List<PricePoint> pts = dev.bzgraph.core.Resampler.resample(d.points());
-		PricePoint live = handle.live();
 		if (live != null && !pts.isEmpty() && live.timestamp().isAfter(pts.getLast().timestamp())) {
 			List<PricePoint> withLive = new ArrayList<>(pts);
 			withLive.add(live);
@@ -197,23 +323,14 @@ public final class BazaarMiniChart {
 		return pts;
 	}
 
-	private void drawPrices(GuiGraphicsExtractor g, Font font, List<PricePoint> pts) {
-		PricePoint last = pts.getLast();
-		int x = x0 + 5, y = y0 + 17;
-		x = priceLabel(g, font, "B ", last.buy(), change(pts, true), COLOR_BUY, x, y) + 8;
-		priceLabel(g, font, "S ", last.sell(), change(pts, false), COLOR_SELL, x, y);
-	}
-
-	private static int priceLabel(GuiGraphicsExtractor g, Font font, String tag, double v, double pct, int color, int x, int y) {
+	private static int priceLabel(GuiGraphicsExtractor g, Font font, String tag, String value, String pct, int pctColor, int color, int x, int y) {
 		g.text(font, tag, x, y, color);
 		x += font.width(tag);
-		String s = CoinFormat.compact(v);
-		g.text(font, s, x, y, 0xFFFFFFFF);
-		x += font.width(s);
-		if (!Double.isNaN(pct)) {
-			String p = String.format(Locale.ROOT, " %+.1f%%", pct);
-			g.text(font, p, x, y, pct >= 0 ? 0xFF55FF55 : 0xFFFF5555);
-			x += font.width(p);
+		g.text(font, value, x, y, 0xFFFFFFFF);
+		x += font.width(value);
+		if (!pct.isEmpty()) {
+			g.text(font, pct, x, y, pctColor);
+			x += font.width(pct);
 		}
 		return x;
 	}
@@ -230,8 +347,9 @@ public final class BazaarMiniChart {
 		return Double.isNaN(first) || first == 0 ? Double.NaN : (last - first) / first * 100;
 	}
 
-	private void drawChart(GuiGraphicsExtractor g, List<PricePoint> pts, int cx0, int cy0, int cx1, int cy1) {
-		int n = pts.size();
+	/** Paints bands then lines into the card's texture (one pixel per GUI pixel, y = 0 at the top). */
+	private static void paint(Built b, List<PricePoint> pts) {
+		int n = pts.size(), w = b.w, h = b.h;
 		long[] t = new long[n];
 		double[] buy = new double[n], sell = new double[n], minB = new double[n], maxB = new double[n], minS = new double[n], maxS = new double[n];
 		double lo = Double.POSITIVE_INFINITY, hi = Double.NEGATIVE_INFINITY;
@@ -255,57 +373,106 @@ public final class BazaarMiniChart {
 		lo -= pad;
 		hi += pad;
 		long tMin = t[0], tMax = Math.max(t[n - 1], tMin + 1);
-		int w = cx1 - cx0 + 1;
-		g.fill(cx0, cy0, cx1 + 1, cy1 + 1, BzGraphClient.get().config().background(0x000000, 0.4));
-		if (BzGraphClient.get().config().showBands) {
-			band(g, t, minS, maxS, tMin, tMax, w, cx0, cy0, cy1, lo, hi, COLOR_SELL);
-			band(g, t, minB, maxB, tMin, tMax, w, cx0, cy0, cy1, lo, hi, COLOR_BUY);
+		b.t = t;
+		b.buy = buy;
+		b.sell = sell;
+		b.lo = lo;
+		b.hi = hi;
+		b.tMin = tMin;
+		b.tMax = tMax;
+
+		Canvas c = new Canvas(w, h + 1);
+		if (b.bands) {
+			band(c, t, minS, maxS, tMin, tMax, w, h, lo, hi, (0x22 << 24) | (COLOR_SELL & 0xFFFFFF));
+			band(c, t, minB, maxB, tMin, tMax, w, h, lo, hi, (0x22 << 24) | (COLOR_BUY & 0xFFFFFF));
 		}
-		line(g, Downsampler.columns(t, sell, tMin, tMax, w), cx0, cy0, cy1, lo, hi, COLOR_SELL);
-		line(g, Downsampler.columns(t, buy, tMin, tMax, w), cx0, cy0, cy1, lo, hi, COLOR_BUY);
+		line(c, Downsampler.columns(t, sell, tMin, tMax, w), h, lo, hi, COLOR_SELL);
+		line(c, Downsampler.columns(t, buy, tMin, tMax, w), h, lo, hi, COLOR_BUY);
+
+		b.textureId = net.minecraft.resources.Identifier.fromNamespaceAndPath(BzGraphClient.MOD_ID, "minichart/" + (textureCounter++));
+		b.texture = new net.minecraft.client.renderer.texture.DynamicTexture(() -> "bzgraph mini chart", w, h + 1, false);
+		com.mojang.blaze3d.platform.NativeImage img = b.texture.getPixels();
+		for (int y = 0; y <= h; y++) for (int x = 0; x < w; x++) img.setPixel(x, y, c.px[y * w + x]);
+		b.texture.upload();
+		Minecraft.getInstance().getTextureManager().register(b.textureId, b.texture);
 	}
 
-	private static int y(double v, double lo, double hi, int cy0, int cy1) {
-		return cy1 - (int) Math.round((v - lo) / (hi - lo) * (cy1 - cy0));
+	/** ARGB pixels with "paint over" blending, so the two bands mix the way overlapping fills do on screen. */
+	private static final class Canvas {
+		final int w, h;
+		final int[] px;
+
+		Canvas(int w, int h) {
+			this.w = w;
+			this.h = h;
+			this.px = new int[w * h];
+		}
+
+		void vline(int x, int ya, int yb, int color) {
+			fill(x, Math.min(ya, yb), x + 1, Math.max(ya, yb) + 1, color);
+		}
+
+		void fill(int x0, int y0, int x1, int y1, int color) {
+			x0 = Math.max(0, x0);
+			y0 = Math.max(0, y0);
+			x1 = Math.min(w, x1);
+			y1 = Math.min(h, y1);
+			int sa = color >>> 24;
+			for (int y = y0; y < y1; y++) {
+				for (int x = x0; x < x1; x++) {
+					int i = y * w + x;
+					px[i] = sa == 255 ? color : over(color, px[i]);
+				}
+			}
+		}
+
+		private static int over(int src, int dst) {
+			int sa = src >>> 24, da = dst >>> 24;
+			int oa = sa + da * (255 - sa) / 255;
+			if (oa == 0) return 0;
+			int r = (((src >> 16) & 0xFF) * sa + ((dst >> 16) & 0xFF) * da * (255 - sa) / 255) / oa;
+			int gr = (((src >> 8) & 0xFF) * sa + ((dst >> 8) & 0xFF) * da * (255 - sa) / 255) / oa;
+			int bl = ((src & 0xFF) * sa + (dst & 0xFF) * da * (255 - sa) / 255) / oa;
+			return oa << 24 | r << 16 | gr << 8 | bl;
+		}
+	}
+
+	private static int y(double v, double lo, double hi, int h) {
+		return h - (int) Math.round((v - lo) / (hi - lo) * h);
 	}
 
 	/** Same polyline technique as the full graph: per-column min/max plus connecting segments. */
-	private static void line(GuiGraphicsExtractor g, Downsampler.Columns c, int cx0, int cy0, int cy1, double lo, double hi, int color) {
+	private static void line(Canvas out, Downsampler.Columns c, int h, double lo, double hi, int color) {
 		int prevCol = -1;
 		double prevVal = Double.NaN;
 		for (int col = 0; col < c.width(); col++) {
 			if (c.count()[col] == 0) continue;
 			if (prevCol >= 0) {
 				int span = col - prevCol;
-				int yPrev = y(prevVal, lo, hi, cy0, cy1);
+				int yPrev = y(prevVal, lo, hi, h);
 				for (int k = 1; k <= span; k++) {
-					int yy = y(prevVal + (c.first()[col] - prevVal) * k / span, lo, hi, cy0, cy1);
-					vline(g, cx0 + prevCol + k, yPrev, yy, color);
+					int yy = y(prevVal + (c.first()[col] - prevVal) * k / span, lo, hi, h);
+					out.vline(prevCol + k, yPrev, yy, color);
 					yPrev = yy;
 				}
 			}
-			vline(g, cx0 + col, y(c.min()[col], lo, hi, cy0, cy1), y(c.max()[col], lo, hi, cy0, cy1), color);
+			out.vline(col, y(c.min()[col], lo, hi, h), y(c.max()[col], lo, hi, h), color);
 			prevCol = col;
 			prevVal = c.last()[col];
 		}
 	}
 
-	private static void band(GuiGraphicsExtractor g, long[] t, double[] mins, double[] maxs, long tMin, long tMax, int w,
-							 int cx0, int cy0, int cy1, double lo, double hi, int color) {
-		int fill = (0x22 << 24) | (color & 0xFFFFFF);
+	private static void band(Canvas out, long[] t, double[] mins, double[] maxs, long tMin, long tMax, int w, int h,
+							 double lo, double hi, int fill) {
 		for (int col = 0; col < w; col++) {
 			long tc = tMin + (long) ((double) col / Math.max(1, w - 1) * (tMax - tMin));
 			int i = java.util.Arrays.binarySearch(t, tc);
 			if (i < 0) i = -i - 2;
 			if (i < 0 || Double.isNaN(mins[i]) || Double.isNaN(maxs[i])) continue;
-			int ya = Math.max(cy0, y(maxs[i], lo, hi, cy0, cy1));
-			int yb = Math.min(cy1, y(mins[i], lo, hi, cy0, cy1));
-			if (ya > cy1 || yb < cy0) continue;
-			g.fill(cx0 + col, ya, cx0 + col + 1, Math.max(ya, yb) + 1, fill);
+			int ya = Math.max(0, y(maxs[i], lo, hi, h));
+			int yb = Math.min(h, y(mins[i], lo, hi, h));
+			if (ya > h || yb < 0) continue;
+			out.fill(col, ya, col + 1, Math.max(ya, yb) + 1, fill);
 		}
-	}
-
-	private static void vline(GuiGraphicsExtractor g, int x, int ya, int yb, int color) {
-		g.fill(x, Math.min(ya, yb), x + 1, Math.max(ya, yb) + 1, color);
 	}
 }

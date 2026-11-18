@@ -9,8 +9,18 @@ Client-side Fabric mod for **Minecraft 26.2** that shows an in-game price-histor
 ## Features
 
 - **Hover + key**: hover an item in any container GUI (inventory, bazaar menu, chests) and press **G** to open its graph.
-- **Item search**: press **G** with no screen open (or with nothing hovered in an inventory/chest), or type `/bzgraph`,
-  to search bazaar items by name or ID; Enter or a click opens the graph.
+- **Favourites**: click ☆ next to an item's name on its graph (or press `S`) to make it a favourite. **G** with no
+  screen open (or with nothing hovered in an inventory/chest), or `/bzgraph favorites`, shows all favourites as a grid
+  of mini charts (three per row); hover a chart for the price at that point, click one for its full graph, ✕ on a chart removes it. The grid also has
+  **Search items** (`F`), **Last: …** (reopens the graph you looked at last) and the charts' range.
+  - **Your own categories**: **+ Category** makes one (e.g. "Mining", "Flips"); drag charts between and within
+    categories to sort them (a yellow bar shows where a chart will land). Right-click a chart to open it, move it to a
+    category (one "Move to" submenu) or remove it; right-click a category to rename it, move it up/down or delete it (its charts move to
+    "Uncategorized"). Click a category's name to fold it.
+- **Reopen**: `/bzgraph` reopens the graph you looked at last (same item, history and compared items), or opens an
+  item search the first time.
+- **Search on the graph**: the search box in the graph's title row (click it or press `F`) finds bazaar items by
+  name or ID; Up/Down and Enter or a click switch the graph to that item, Esc clears it.
   With no GUI open, **G** graphs the item in your main hand.
 - **Recipe viewers**: search for an item, hover it and press **G** to graph it.
   - **Reliable Recipe Viewer (RRV)**: works in RRV's item list, bookmarks and craftables (BZgraph registers its key
@@ -18,7 +28,7 @@ Client-side Fabric mod for **Minecraft 26.2** that shows an in-game price-histor
   - **Roughly Enough Items (REI)**: works in REI's item list, favorites and recipe screens.
   Both are optional; BZgraph talks to them through reflection and simply skips this when they aren't installed. G is ignored while a text box (REI search, anvil, creative search) is
   focused.
-- **Command**: `/bzgraph` opens the item search; `/bzgraph <ITEM_ID>` opens a graph directly, with tab-completion of all bazaar product IDs (e.g. `/bzgraph ENCHANTED_DIAMOND`).
+- **Command**: `/bzgraph` reopens the last graph (or the item search); `/bzgraph <ITEM_ID>` opens a graph directly, with tab-completion of all bazaar product IDs (e.g. `/bzgraph ENCHANTED_DIAMOND`).
 - **Graph screen** (a centered panel, about three quarters of the screen)
   - Buy and sell price lines, each toggleable (Buy / Sell buttons; filled box = on, hollow = off). **Buy** is the
     insta-buy price (lowest sell offer), **Sell** the insta-sell price (highest buy order); hover the labels to see this.
@@ -42,10 +52,11 @@ Client-side Fabric mod for **Minecraft 26.2** that shows an in-game price-histor
   - "SkyCofl · updated 2 min ago", loading spinner, "Refreshing…" badge, and clear errors: prices can't be loaded
     (press R to retry), rate limited (auto-retry), not a bazaar item, no data.
 - **Mayor bar** under the graph: who was mayor (and minister) at each point, coloured by type (neighbouring terms of
-  the same type are shaded apart; terms too thin to label can still be hovered); hover for perks.
+  the same type are shaded apart; terms too thin to label can still be hovered). Labels show "Mayor · Minister" when
+  there is room; hover for perks. The graph's hover tooltip names the mayor and minister at that time too.
   Toggle with `M`.
-- **Mini chart in the bazaar**: on an item's page in Hypixel's bazaar, a small chart (buy/sell lines, band, current
-  prices and change over the range) appears left of the window. Click it for the full graph; right-click to change
+- **Mini chart in the bazaar**: on an item's page in Hypixel's bazaar, a small chart (buy/sell lines, band,
+  current prices and change over the range; hover it for the price at that point) appears left of the window. Click it for the full graph; right-click to change
   its range. Turn it off with `"miniChart": false`.
 - **Patch notes on the graph**: markers at SkyBlock patch-note release dates. Hover for title, date, what the patch
   changed *for this item* (when the index has a note for it), the general summary, and the median price before vs.
@@ -106,7 +117,11 @@ Client-side Fabric mod for **Minecraft 26.2** that shows an in-game price-histor
   "purseRange": "1W",
   "compareMode": "PERCENT",
   "compareSide": "BUY",
-  "compareBoth": false
+  "compareBoth": false,
+  "favoriteGroups": {
+    "groups": { "Keys": ["SKELETON_KEY"], "": ["ENCHANTED_DIAMOND"] },
+    "collapsed": []
+  }
 }
 ```
 

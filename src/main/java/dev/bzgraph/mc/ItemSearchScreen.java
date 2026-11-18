@@ -50,10 +50,31 @@ public final class ItemSearchScreen extends Screen implements BzScreen {
 
 	/** Pick an item to open its graph; closing returns to {@code parent} (null = the game). */
 	public static ItemSearchScreen openGraph(Screen parent) {
-		return new ItemSearchScreen("Search bazaar items", parent, parent, Set.of(), id -> {
+		return openGraph(parent, false);
+	}
+
+	/**
+	 * @param fromKeyPress opened by a key press: that key's character arrives right after and must not end up
+	 *                     in the search box
+	 */
+	public static ItemSearchScreen openGraph(Screen parent, boolean fromKeyPress) {
+		ItemSearchScreen s = new ItemSearchScreen("Search bazaar items", parent, parent, Set.of(), id -> {
 			BzGraphClient c = BzGraphClient.get();
 			net.minecraft.client.Minecraft.getInstance().gui.setScreen(new GraphScreen(parent, id, c.trades().displayName(id)));
 		}, false);
+		s.swallowNextChar = fromKeyPress;
+		return s;
+	}
+
+	private boolean swallowNextChar;
+
+	@Override
+	public boolean charTyped(net.minecraft.client.input.CharacterEvent event) {
+		if (swallowNextChar) {
+			swallowNextChar = false;
+			return true;
+		}
+		return super.charTyped(event);
 	}
 
 	@Override
@@ -75,10 +96,16 @@ public final class ItemSearchScreen extends Screen implements BzScreen {
 	}
 
 	private void rebuild() {
+		rows = matches(search == null ? "" : search.getValue(), exclude, MAX_ROWS);
+		scroll = 0;
+	}
+
+	/** Bazaar items matching {@code query} as [id, name]: names/IDs starting with it first, then ones containing it. */
+	static List<String[]> matches(String query, Set<String> exclude, int max) {
 		BzGraphClient c = BzGraphClient.get();
 		c.ensureProducts();
 		Set<String> products = c.products();
-		String q = search == null ? "" : search.getValue().strip().toLowerCase(Locale.ROOT);
+		String q = query.strip().toLowerCase(Locale.ROOT);
 		String qId = q.toUpperCase(Locale.ROOT).replace(' ', '_');
 		List<String[]> starts = new ArrayList<>(), contains = new ArrayList<>();
 		if (products != null) {
@@ -93,8 +120,7 @@ public final class ItemSearchScreen extends Screen implements BzScreen {
 		starts.sort((a, b) -> a[1].compareToIgnoreCase(b[1]));
 		contains.sort((a, b) -> a[1].compareToIgnoreCase(b[1]));
 		starts.addAll(contains);
-		rows = starts.size() > MAX_ROWS ? starts.subList(0, MAX_ROWS) : starts;
-		scroll = 0;
+		return starts.size() > max ? starts.subList(0, max) : starts;
 	}
 
 	@Override
@@ -109,6 +135,7 @@ public final class ItemSearchScreen extends Screen implements BzScreen {
 
 	@Override
 	public boolean keyPressed(KeyEvent event) {
+		swallowNextChar = false; // a real key press after opening: its character is wanted
 		if ((event.key() == GLFW.GLFW_KEY_ENTER || event.key() == GLFW.GLFW_KEY_KP_ENTER) && !rows.isEmpty()) {
 			pick(rows.getFirst()[0]);
 			return true;

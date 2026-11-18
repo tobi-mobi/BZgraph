@@ -111,7 +111,14 @@ public final class TradeTracker {
 	}
 
 	/** "Enchanted Diamond" for ENCHANTED_DIAMOND (from Hypixel's item list, else the ID in title case). */
+	/** Cleaned names already worked out (screens ask every frame); reset when the name list changes. */
+	private final Map<String, String> nameCache = new java.util.concurrent.ConcurrentHashMap<>();
+
 	public String displayName(String productId) {
+		return nameCache.computeIfAbsent(productId, this::computeDisplayName);
+	}
+
+	private String computeDisplayName(String productId) {
 		String n = displayNames.get(productId);
 		if (n != null) return n.replaceAll("§.", "");
 		StringBuilder sb = new StringBuilder();
@@ -145,6 +152,7 @@ public final class TradeTracker {
 				namesLoading.set(false); // try again next time a graph opens
 			} else {
 				displayNames = Map.copyOf(names);
+				nameCache.clear();
 				service.setNames(ProductNames.build(products, names));
 			}
 		});

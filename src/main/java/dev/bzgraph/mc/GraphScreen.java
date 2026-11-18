@@ -17,6 +17,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.ConfirmLinkScreen;
 import net.minecraft.client.gui.screens.Screen;
@@ -107,6 +108,7 @@ public final class GraphScreen extends Screen implements BzScreen {
 	private int mayorBarY = -1;
 	private Button backButton;
 	private Button forwardButton;
+	private Button favButton;
 
 	/** Patch markers drawn in the last frame (for hover/click). */
 	private record Cluster(int x, List<PatchNote> patches, boolean relevant) {
@@ -176,6 +178,13 @@ public final class GraphScreen extends Screen implements BzScreen {
 	private Button bothButton;
 	private Button helpButton;
 	private boolean helpOpen;
+	// ---- item search in the title row
+	private static final int SEARCH_W = 110;
+	private static final int SEARCH_ROWS = 8;
+	private static final int SEARCH_ROW_H = 11;
+	private EditBox searchBox;
+	private List<String[]> searchResults = List.of();
+	private int searchSel;
 
 	/** Header text the mouse can hover for an explanation, as drawn in the last frame. */
 	private record HeaderHit(int x0, int y0, int x1, int y1, String text) {
@@ -308,6 +317,10 @@ public final class GraphScreen extends Screen implements BzScreen {
 		forwardButton.active = nav.canForward();
 		backButton.setTooltip(Tooltip.create(Component.literal("Previous item (Left arrow)")));
 		forwardButton.setTooltip(Tooltip.create(Component.literal("Next item (Right arrow)")));
+		favButton = addRenderableWidget(Button.builder(Component.empty(), b -> toggleFavorite())
+				.bounds(px0 + PAD + 32, py0 + 4, 14, 14).build());
+		favButton.active = productId != null;
+		updateFavButton();
 
 		attrX = px0 + PAD;
 		attrY = py1 - 12;
@@ -328,6 +341,15 @@ public final class GraphScreen extends Screen implements BzScreen {
 		modeButton.setTooltip(Tooltip.create(Component.literal("What the Y axis shows (click to switch):\n"
 				+ "% change: every line starts at 0% at the left edge, so cheap and expensive items compare\n"
 				+ "Price: actual prices\nRatio: first item \u00f7 second item (two items only)")));
+		String prevQuery = searchBox == null ? "" : searchBox.getValue();
+		searchBox = addRenderableWidget(new EditBox(font, tx - 2 - SEARCH_W, py0 + 4, SEARCH_W, 14, Component.literal("Search items")));
+		searchBox.setHint(Component.literal("Search items (F)").withColor(0xFF808080));
+		searchBox.setMaxLength(64);
+		searchBox.setValue(prevQuery);
+		searchBox.setResponder(q -> {
+			searchResults = q.isBlank() ? List.of() : ItemSearchScreen.matches(q, Set.of(), SEARCH_ROWS);
+			searchSel = 0;
+		});
 		updateCompareState();
 
 		BzConfig cfg = BzGraphClient.get().config();
@@ -429,9 +451,15 @@ public final class GraphScreen extends Screen implements BzScreen {
 		updateCompareState();
 	}
 
+	/** Left edge of the title row's right-hand controls (search box and buttons). */
+	private int topRightLeft() {
+		return searchBox != null ? searchBox.getX() : compareButton != null ? compareButton.getX() : px1;
+	}
+
 	private void updateCompareState() {
 		boolean comparing = !compare.isEmpty();
 		modeButton.visible = comparing;
+		if (searchBox != null) searchBox.setX((comparing ? modeButton.getX() : compareButton.getX()) - 2 - SEARCH_W);
 		modeButton.setMessage(Component.literal(switch (compareMode()) {
 			case PERCENT -> "Show: % change ▾";
 			case PRICE -> "Show: Price ▾";
@@ -535,8 +563,38 @@ public final class GraphScreen extends Screen implements BzScreen {
 
 	@Override
 	public boolean keyPressed(KeyEvent event) {
+		swallowNextChar = false; // only ever swallow the character of the F press itself
 		if (helpOpen) { // any key just closes the overview
 			helpOpen = false;
+			return true;
+		}
+		if (searchBox != null && searchBox.isFocused()) {
+			int k = event.key();
+			if (k == GLFW.GLFW_KEY_ESCAPE) {
+				closeSearch();
+				return true;
+			}
+			if ((k == GLFW.GLFW_KEY_ENTER || k == GLFW.GLFW_KEY_KP_ENTER) && !searchResults.isEmpty()) {
+				pickSearch(searchResults.get(Math.min(searchSel, searchResults.size() - 1)));
+				return true;
+			}
+			if (k == GLFW.GLFW_KEY_DOWN && !searchResults.isEmpty()) {
+				searchSel = (searchSel + 1) % searchResults.size();
+				return true;
+			}
+			if (k == GLFW.GLFW_KEY_UP && !searchResults.isEmpty()) {
+				searchSel = (searchSel - 1 + searchResults.size()) % searchResults.size();
+				return true;
+			}
+			return super.keyPressed(event); // typing, never the graph's shortcuts
+		}
+		if (event.key() == GLFW.GLFW_KEY_S && productId != null) {
+			toggleFavorite();
+			return true;
+		}
+		if (event.key() == GLFW.GLFW_KEY_F && searchBox != null) {
+			setFocused(searchBox);
+			swallowNextChar = true; // the "f" of this key press arrives next as a typed character
 			return true;
 		}
 		if (event.key() == GLFW.GLFW_KEY_SLASH || event.key() == GLFW.GLFW_KEY_H) {
@@ -596,6 +654,14 @@ public final class GraphScreen extends Screen implements BzScreen {
 				helpOpen = false;
 			}
 			return true;
+		}
+		if (searchBox != null && searchBox.isFocused()) {
+			int row = searchRowAt(event.x(), event.y());
+			if (row >= 0) {
+				pickSearch(searchResults.get(row));
+				return true;
+			}
+			if (!searchBox.isMouseOver(event.x(), event.y())) closeSearch();
 		}
 		if (event.button() == GLFW.GLFW_MOUSE_BUTTON_4) {
 			goBack();
@@ -663,6 +729,10 @@ public final class GraphScreen extends Screen implements BzScreen {
 		if (term == null) return;
 		lines.add(Component.literal("Mayor: ").withColor(COLOR_DIM).append(Component.literal(term.mayor()).withColor(mayorColor(term) | 0xFF404040))
 				.append(Component.literal(term.category().isEmpty() ? "" : " (" + term.category() + ")").withColor(COLOR_DIM)));
+		if (term.minister() != null) {
+			lines.add(Component.literal("Minister: ").withColor(COLOR_DIM).append(Component.literal(term.minister()).withColor(0xFFCCCCCC))
+					.append(Component.literal(term.ministerPerk() == null ? "" : " (" + term.ministerPerk() + ")").withColor(COLOR_DIM)));
+		}
 	}
 
 	/** One short line naming the patch(es) under the crosshair. */
@@ -678,6 +748,82 @@ public final class GraphScreen extends Screen implements BzScreen {
 	@Override
 	public void onClose() {
 		minecraft.gui.setScreen(nav.root());
+	}
+
+	@Override
+	public void removed() {
+		// G or /bzgraph later reopens this item (and what it was compared with)
+		if (productId != null) BzGraphClient.get().rememberGraph(nav, compare.stream().map(c -> c.id).toList());
+	}
+
+	/** Opens the last graph (back to {@code root} when closed), or null if none was open this session. */
+	public static GraphScreen reopen(GraphNav last, List<String> compareIds, Screen root) {
+		if (last == null || last.current() == null) return null;
+		GraphScreen s = new GraphScreen(last.withRoot(root));
+		for (String id : compareIds) s.addCompare(id);
+		return s;
+	}
+
+	private boolean swallowNextChar;
+
+	@Override
+	public boolean charTyped(net.minecraft.client.input.CharacterEvent event) {
+		if (swallowNextChar) {
+			swallowNextChar = false;
+			return true;
+		}
+		return super.charTyped(event);
+	}
+
+	private void closeSearch() {
+		searchBox.setValue("");
+		searchBox.setFocused(false);
+		setFocused(null);
+	}
+
+	private void pickSearch(String[] row) {
+		closeSearch();
+		navigate(nav, row[0], row[1]);
+	}
+
+	private int searchDropX0() {
+		return Math.min(searchBox.getX(), px1 - PAD - searchDropW());
+	}
+
+	private int searchDropW() {
+		return Math.max(SEARCH_W, 200);
+	}
+
+	private int searchRowAt(double mx, double my) {
+		if (searchResults.isEmpty()) return -1;
+		int x0 = searchDropX0(), y0 = searchBox.getY() + searchBox.getHeight() + 1;
+		if (mx < x0 || mx >= x0 + searchDropW() || my < y0) return -1;
+		int i = (int) ((my - y0) / SEARCH_ROW_H);
+		return i < searchResults.size() ? i : -1;
+	}
+
+	/** Results under the search box, drawn over the graph. */
+	private void drawSearchDropdown(GuiGraphicsExtractor g, int mx, int my) {
+		if (searchBox == null || !searchBox.isFocused()) return;
+		int x0 = searchDropX0(), w = searchDropW(), y0 = searchBox.getY() + searchBox.getHeight() + 1;
+		if (searchResults.isEmpty()) {
+			if (searchBox.getValue().isBlank()) return;
+			String msg = BzGraphClient.get().products() == null ? "Loading bazaar items\u2026" : "No matching bazaar item";
+			g.fill(x0, y0, x0 + w, y0 + SEARCH_ROW_H + 2, 0xF0101014);
+			g.outline(x0, y0, w, SEARCH_ROW_H + 2, 0xFF3A3A44);
+			g.text(font, msg, x0 + 4, y0 + 2, 0xFF888888);
+			return;
+		}
+		int h = searchResults.size() * SEARCH_ROW_H + 2;
+		g.fill(x0, y0, x0 + w, y0 + h, 0xF0101014);
+		g.outline(x0, y0, w, h, 0xFF3A3A44);
+		int hover = searchRowAt(mx, my);
+		for (int i = 0; i < searchResults.size(); i++) {
+			int y = y0 + 1 + i * SEARCH_ROW_H;
+			if (i == hover || (hover < 0 && i == searchSel)) g.fill(x0 + 1, y, x0 + w - 1, y + SEARCH_ROW_H, 0x40FFFFFF);
+			String[] r = searchResults.get(i);
+			g.text(font, font.plainSubstrByWidth(r[1], w - 8), x0 + 4, y + 2, i == searchSel ? 0xFFFFFF77 : 0xFFFFFFFF);
+		}
 	}
 
 	@Override
@@ -744,6 +890,8 @@ public final class GraphScreen extends Screen implements BzScreen {
 	private void finishFrame(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
 		super.extractRenderState(g, mouseX, mouseY, partialTick);
 		drawButtonStates(g);
+		drawSearchDropdown(g, mouseX, mouseY);
+		if (searchBox != null && searchBox.isFocused() && !searchResults.isEmpty()) return;
 		if (helpOpen) {
 			GraphUi.drawHelp(g, font, (gx0 + gx1) / 2, (gy0 + gy1) / 2, false, COLOR_BUY, COLOR_SELL);
 			return;
@@ -761,7 +909,7 @@ public final class GraphScreen extends Screen implements BzScreen {
 	private void drawHeader(GuiGraphicsExtractor g) {
 		String name = displayName != null && !displayName.isBlank() ? displayName : productId;
 		String title = name == null ? "BZgraph" : name;
-		int maxW = (modeButton != null && modeButton.visible ? modeButton.getX() : compareButton != null ? compareButton.getX() : px1) - 6 - titleX();
+		int maxW = topRightLeft() - 6 - titleX();
 		String shown = font.plainSubstrByWidth(title, Math.max(20, maxW));
 		g.text(font, shown, titleX(), py0 + PAD, COLOR_TEXT);
 		if (productId != null) {
@@ -831,8 +979,21 @@ public final class GraphScreen extends Screen implements BzScreen {
 	}
 
 	/** The title starts after the back/forward arrows. */
+	private void toggleFavorite() {
+		if (productId == null) return;
+		BzGraphClient.get().config().toggleFavorite(productId);
+		updateFavButton();
+	}
+
+	private void updateFavButton() {
+		boolean fav = productId != null && BzGraphClient.get().config().isFavorite(productId);
+		favButton.setMessage(Component.literal(fav ? "\u2605" : "\u2606").withColor(fav ? 0xFFFFD25A : 0xFFAAAAAA));
+		favButton.setTooltip(Tooltip.create(Component.literal(fav ? "Remove from favourites (S)"
+				: "Add to favourites (S): G with no screen open shows all your favourites as mini charts")));
+	}
+
 	private int titleX() {
-		return px0 + PAD + 34;
+		return px0 + PAD + 50;
 	}
 
 	/** "Updated 2 min ago" on the left, shortcuts on the right. Data sources are listed in the ? box. */
@@ -843,7 +1004,7 @@ public final class GraphScreen extends Screen implements BzScreen {
 		String left = data == null || data.fetchedAt() == null ? "" : " · updated " + GraphUi.ago(data.fetchedAt(), Instant.now());
 		g.text(font, left, attrX + font.width(CREDIT), attrY, GraphUi.COLOR_FAINT);
 		int leftEnd = attrX + font.width(CREDIT) + font.width(left);
-		String hint = productId == null ? "" : "1-5 range · C compare · P patches · M mayors · B band · ? help & sources";
+		String hint = productId == null ? "" : "1-5 range · F search · C compare · P patches · M mayors · ? help";
 		if (px1 - PAD - font.width(hint) <= leftEnd + 8) hint = productId == null ? "" : "? help & sources";
 		int hx = px1 - PAD - font.width(hint);
 		if (hx > leftEnd + 8) g.text(font, hint, hx, attrY, GraphUi.COLOR_FOOTER);
@@ -895,7 +1056,7 @@ public final class GraphScreen extends Screen implements BzScreen {
 			}
 		}
 		int w = font.width(msg);
-		int right = (modeButton != null && modeButton.visible ? modeButton.getX() : compareButton.getX()) - 6;
+		int right = topRightLeft() - 6;
 		g.text(font, msg, right - w, py0 + PAD - 2, color);
 		if (h.isBusy()) drawSpinnerSmall(g, right - w - 8, py0 + PAD + 1);
 	}
@@ -1281,8 +1442,15 @@ public final class GraphScreen extends Screen implements BzScreen {
 			segs.add(new MayorSegment(a, b, t));
 			g.fill(a, mayorBarY, b, mayorBarY + MAYOR_BAR_H, color);
 			g.fill(a, mayorBarY, a + 1, mayorBarY + MAYOR_BAR_H, 0xC0000000); // term boundary
+			// "Cole · Paul" (mayor · minister) when it fits, else just the mayor
 			String name = t.mayor();
-			if (b - a > font.width(name) + 4) g.text(font, name, a + 2, mayorBarY + 1, 0xFFFFFFFF);
+			String both = t.minister() == null ? name : name + " · " + t.minister();
+			if (b - a > font.width(both) + 4) {
+				g.text(font, Component.literal(name).withColor(0xFFFFFFFF)
+						.append(Component.literal(both.substring(name.length())).withColor(0xFFDDDDDD)), a + 2, mayorBarY + 1, 0xFFFFFFFF);
+			} else if (b - a > font.width(name) + 4) {
+				g.text(font, name, a + 2, mayorBarY + 1, 0xFFFFFFFF);
+			}
 		}
 		if (segs.isEmpty()) {
 			String msg = mayors.terms().isEmpty() ? "mayor history loading…" : "no mayor data for this time";

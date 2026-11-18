@@ -25,6 +25,14 @@ public final class GraphNav {
 		this.root = root;
 	}
 
+	/** Same item history and position, returning to {@code root} when closed (for reopening the last graph). */
+	public GraphNav withRoot(Screen root) {
+		GraphNav n = new GraphNav(root);
+		n.entries.addAll(entries);
+		n.pos = pos;
+		return n;
+	}
+
 	public Screen root() {
 		return root;
 	}

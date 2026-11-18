@@ -51,6 +51,33 @@ public final class BzConfig {
 	public boolean compareBoth = false;
 	/** The marker/shortcut overview was shown once on the first graph opened. */
 	public boolean seenHelp = false;
+	/**
+	 * Favourite items in your own categories, shown as mini charts by G / /bzgraph favorites. Organise them on that
+	 * screen (drag charts, right-click for menus).
+	 */
+	public dev.bzgraph.core.Favorites favoriteGroups = new dev.bzgraph.core.Favorites();
+	/** Old flat favourites list (before categories); moved into {@link #favoriteGroups} on load. */
+	public java.util.List<String> favorites;
+
+	public dev.bzgraph.core.Favorites favorites() {
+		if (favoriteGroups == null) favoriteGroups = new dev.bzgraph.core.Favorites();
+		if (favorites != null) {
+			for (String id : favorites) favoriteGroups.add(id);
+			favorites = null;
+		}
+		return favoriteGroups;
+	}
+
+	public boolean isFavorite(String productId) {
+		return favorites().contains(productId);
+	}
+
+	/** Adds or removes a favourite; returns whether it is one now. */
+	public boolean toggleFavorite(String productId) {
+		boolean now = favorites().toggle(productId);
+		save();
+		return now;
+	}
 	/** On startup, import trades from this Minecraft instance's older log files (each file only once). */
 	public boolean importLogsOnStartup = true;
 

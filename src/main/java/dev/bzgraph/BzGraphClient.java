@@ -12,6 +12,7 @@ import dev.bzgraph.mc.BzConfig;
 import dev.bzgraph.mc.GraphScreen;
 import dev.bzgraph.mc.ItemReader;
 import dev.bzgraph.mc.ItemSearchScreen;
+import dev.bzgraph.mc.FavoritesScreen;
 import dev.bzgraph.mc.BazaarMiniChart;
 import dev.bzgraph.mc.BzScreen;
 import dev.bzgraph.mc.GraphNav;
@@ -83,6 +84,32 @@ public final class BzGraphClient implements ClientModInitializer {
 	private volatile long productsRetryAt;
 	/** Screen to open on the next tick (commands run while the chat screen is still closing). */
 	private Screen pendingScreen;
+	/** The graph that was open last (its item history and compared items), reopened by G / /bzgraph. */
+	private GraphNav lastNav;
+	private java.util.List<String> lastCompare = java.util.List.of();
+
+	public void rememberGraph(GraphNav nav, java.util.List<String> compareIds) {
+		lastNav = nav;
+		lastCompare = java.util.List.copyOf(compareIds);
+	}
+
+	/** The last graph you looked at (closing returns to {@code parent}), or the item search if there's none yet. */
+	private Screen lastGraphOrSearch(Screen parent) {
+		Screen s = reopenLast(parent);
+		return s != null ? s : ItemSearchScreen.openGraph(parent);
+	}
+
+	/** The last graph you looked at, or null if none was open this session. */
+	public GraphScreen reopenLast(Screen parent) {
+		return GraphScreen.reopen(lastNav, lastCompare, parent);
+	}
+
+	/** Name of the item the last graph showed, or null. */
+	public String lastItemName() {
+		return lastNav == null || lastNav.current() == null ? null : lastNav.current().displayName();
+	}
+
+
 
 	public static BzGraphClient get() {
 		return instance;
@@ -168,6 +195,14 @@ public final class BzGraphClient implements ClientModInitializer {
 							pendingScreen = new PatchListScreen(null, new GraphNav(null), null, null, null, null);
 							return 1;
 						}))
+						.then(ClientCommands.literal("favorites").executes(c -> {
+							if (!isActive()) {
+								c.getSource().sendError(Component.literal("BZgraph is only active on Hypixel."));
+								return 0;
+							}
+							pendingScreen = new FavoritesScreen(null);
+							return 1;
+						}))
 						.then(ClientCommands.literal("purse").executes(c -> {
 							if (!isActive()) {
 								c.getSource().sendError(Component.literal("BZgraph is only active on Hypixel."));
@@ -215,7 +250,7 @@ public final class BzGraphClient implements ClientModInitializer {
 								c.getSource().sendError(Component.literal("BZgraph is only active on Hypixel."));
 								return 0;
 							}
-							pendingScreen = ItemSearchScreen.openGraph(null);
+							pendingScreen = lastGraphOrSearch(null);
 							return 1;
 						})));
 	}
@@ -331,7 +366,7 @@ public final class BzGraphClient implements ClientModInitializer {
 		}
 		// Keybind with no screen open: item search.
 		while (openKey.consumeClick()) {
-			if (mc.gui.screen() == null && isActive()) mc.gui.setScreen(ItemSearchScreen.openGraph(null));
+			if (mc.gui.screen() == null && isActive()) mc.gui.setScreen(new FavoritesScreen(null));
 		}
 	}
 
@@ -351,7 +386,7 @@ public final class BzGraphClient implements ClientModInitializer {
 			// nothing hovered in an inventory/chest: open the item search instead (next tick, so the key's
 			// character doesn't land in the search box)
 			if (!(screen instanceof AbstractContainerScreen<?>)) return false;
-			pendingScreen = ItemSearchScreen.openGraph(screen);
+			pendingScreen = new FavoritesScreen(screen);
 			return true;
 		}
 		openForStack(stack, screen);
