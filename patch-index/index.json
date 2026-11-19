@@ -1,7 +1,21 @@
 {
   "version": 1,
-  "updated": "2026-11-16T21:56:11Z",
+  "updated": "2026-11-19T00:24:32Z",
   "patches": [
+    {
+      "id": "t6173701",
+      "date": "2026-11-18T22:50:26Z",
+      "version": null,
+      "title": "[November 18] SkyBlock Patch Notes",
+      "summary": "",
+      "url": "https://hypixel.net/threads/november-18-skyblock-patch-notes.6173701/",
+      "autoItems": [
+        "COMPACTOR"
+      ],
+      "items": [],
+      "excludeItems": [],
+      "needsReview": true
+    },
     {
       "id": "t6171561",
       "date": "2026-11-11T20:23:29Z",
