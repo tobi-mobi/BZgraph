@@ -31,18 +31,10 @@ dependencies {
 
 processResources {
 	def version = project.version
-	def patchIndexUrl = project.findProperty("patch_index_url") ?: ""
 	inputs.property "version", version
-	inputs.property "patchIndexUrl", patchIndexUrl
 
 	filesMatching("fabric.mod.json") {
-		expand "version": version, "patch_index_url": patchIndexUrl
-	}
-
-	// Bundle the patch index so the mod works offline / on first launch.
-	from("patch-index/index.json") {
-		into "assets/bzgraph"
-		rename { "patch_index.json" }
+		expand "version": version
 	}
 }
 

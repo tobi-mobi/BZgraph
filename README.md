@@ -37,10 +37,9 @@ Client-side Fabric mod for **Minecraft 26.2** that shows an in-game price-histor
   - Each range is drawn at one level of detail: SkyCofl's fine recent samples are merged into the same bucket size as
     the older ones, so the right edge doesn't turn into a scribble.
   - **‹ ›** arrows (or Left/Right arrow keys, or mouse back/forward buttons) move through the items you've opened in
-    this session, e.g. after clicking an item in a patch note.
-  - `Esc` (or `G`) closes BZgraph entirely and returns to the screen you opened it from; the patch screens' **Back**
-    button goes back one step.
-  - Hover crosshair with date, buy, sell, spread, volume, the mayor at that time and the patch note on that point.
+    this session.
+  - `Esc` (or `G`) closes BZgraph entirely and returns to the screen you opened it from.
+  - Hover crosshair with date, buy, sell, spread, volume, and the mayor at that time.
   - A faint band behind each line shows the lowest–highest price within each sample (a whole day on 1M/1Y/ALL),
     since a daily line can't show moves within the day; your trade markers fall inside it. With both lines shown,
     hovering near one shows only its band; single outlier trades are clipped so they don't stretch it. Toggle with
@@ -58,17 +57,9 @@ Client-side Fabric mod for **Minecraft 26.2** that shows an in-game price-histor
 - **Mini chart in the bazaar**: on an item's page in Hypixel's bazaar, a small chart (buy/sell lines, band,
   current prices and change over the range; hover it for the price at that point) appears left of the window. Click it for the full graph; right-click to change
   its range. Turn it off with `"miniChart": false`.
-- **Patch notes on the graph**: markers at SkyBlock patch-note release dates. Hover for title, date, what the patch
-  changed *for this item* (when the index has a note for it), the general summary, and the median price before vs.
-  after the patch; click for details. "Patches: Item / All / Off" button (only patches that
-  mention the item, all patches, or none). Markers close together merge into one; clicking it lists them.
-- **Patch note browser**: `/bzgraph patches` or `P` on a graph — searchable list with title, date, a short summary,
-  mentioned bazaar items (click to graph) and an "Open full post" link to the Hypixel forums.
 - **Your trades on the graph**: ▲ where you bought and ▼ where you sold, at the price you got (the same markers on the
   purse graph; neutral white, so a sale doesn't read as a loss). Hover for amount, price, coins, time and how the
-  price has moved since. Nearby trades merge into one marker. **Trades** button.
-- **Patch notes** are a thin line through the graph with a small flag on top (two flags when several are merged).
-  See [Your trades](#your-trades).
+  price has moved since. Nearby trades merge into one marker. **Trades** button. See [Your trades](#your-trades).
 - **Compare items**: **+ Compare** (or `C`) on a graph adds up to 3 more bazaar items (search by name or ID), or
   `/bzgraph compare ENCHANTED_DIAMOND DIAMOND ...`. Each item gets its own colour (colour-blind friendly) and one
   line: pick buy or sell price with the Buy / Sell buttons, or turn on **Both lines** (sell lines faded). The
@@ -104,8 +95,6 @@ Client-side Fabric mod for **Minecraft 26.2** that shows an in-game price-histor
   "showBuy": true,
   "showSell": true,
   "defaultRange": "1W",
-  "patchMarkers": "RELEVANT",
-  "patchIndexUrl": "",
   "showTrades": true,
   "importLogsOnStartup": true,
   "showBands": true,
@@ -125,39 +114,7 @@ Client-side Fabric mod for **Minecraft 26.2** that shows an in-game price-histor
 }
 ```
 
-The last selected range and line toggles are remembered. `patchIndexUrl` overrides the built-in patch index URL
-(e.g. a Raspberry Pi); it must be `https://`, or `http://` to a LAN host such as `192.168.x.x` or `raspberrypi.local`.
-
-## Patch index
-
-Patch notes come from a JSON index you host, not from the forum directly:
-
-- `patch-index/index.json` — the index. Each entry has `id`, `date` (UTC), `version`, `title`, `summary`, `url`,
-  `autoItems` (found by the script), `items` (manual additions), `excludeItems` (manual removals) and `itemNotes`.
-- `itemNotes` maps a product ID to what the patch changed for that item, e.g.
-  `{"GLOSSY_GEMSTONE": "Drop rate doubled at every Breaking Power."}`. Keys may end in `*` to cover every level
-  (`ENCHANTMENT_KARMA_*`). Once an entry has `itemNotes` (even `{}`), it counts as curated: only the items it names
-  (plus `items`) are relevant, and `autoItems` — just names spotted in the post — is ignored.
-  Without `itemNotes`, the mod uses `autoItems + items − excludeItems`.
-- `patch-index/scripts/update_index.py` — Python 3 (standard library only). Reads the
-  [SkyBlock Patch Notes forum](https://hypixel.net/forums/skyblock-patch-notes.158/) RSS feed, fetches each new thread,
-  takes the release date from the `[Month Day]` title prefix, and tags bazaar items whose names appear in the post.
-  It never overwrites the hand-written fields of existing entries. `--mode backfill` walks the whole forum (seeding),
-  `--mode validate` checks the file.
-- `.github/workflows/patch-index.yml` — runs the script every 6 hours and opens/updates a pull request on branch
-  `patch-index/auto`. Before merging: write each new `summary` **in your own words**, add `itemNotes` for the items
-  the patch really affects, and remove `"needsReview": true`. PRs and pushes touching `patch-index/` are validated.
-  Enable *Settings → Actions → General → Allow GitHub Actions to create and approve pull requests*.
-- **Keep `updated` current.** The mod uses whichever copy (its 24 h download cache or the one bundled in the jar)
-  has the newer `updated` stamp. The workflow bumps it automatically when `index.json` changes on `main` without
-  it; locally, run `python patch-index/scripts/update_index.py --mode touch` after editing.
-
-The mod downloads the index once per session (cached 24 h in `config/bzgraph/cache/patch_index.json`, via the same
-1-request-per-second queue) and also bundles the copy from build time, so it works offline. Set the default URL in
-`gradle.properties` (`patch_index_url=https://raw.githubusercontent.com/<owner>/<repo>/main/patch-index/index.json`).
-To self-host later, serve the same file from any web server and change that URL (or players' `patchIndexUrl`).
-
-Patch markers show *timing*, not cause — prices also move with events, mayors and the market.
+The last selected range and line toggles are remembered.
 
 ## Your trades
 
@@ -218,7 +175,5 @@ ratios), purse reading/recording, time-axis ticks and resampling.
 
 - Price data: **[SkyCofl](https://sky.coflnet.com)** (sky.coflnet.com).
 - Bazaar product list: Hypixel public API.
-- Patch notes: titles, dates and links to the official Hypixel SkyBlock patch notes; summaries are written by the
-  index maintainer.
 
 License: CC0-1.0.

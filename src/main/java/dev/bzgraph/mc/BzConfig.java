@@ -20,13 +20,6 @@ public final class BzConfig {
 	public boolean showSell = true;
 	/** One of 1D, 1W, 1M, 1Y, ALL. */
 	public String defaultRange = "1W";
-	/** Patch-note markers on graphs: RELEVANT (only patches mentioning the item), ALL, or OFF. */
-	public String patchMarkers = "RELEVANT";
-	/**
-	 * Patch index URL override (e.g. your Raspberry Pi). Empty = the default baked into the mod.
-	 * Must be https://, or http:// to a LAN host (192.168.x.x, *.local, ...).
-	 */
-	public String patchIndexUrl = "";
 	/** Show your own bazaar trades (from chat and imported logs) as markers on graphs. */
 	public boolean showTrades = true;
 	/** Shade each point's low-high price range behind the lines (full graph and mini chart). */
@@ -103,8 +96,6 @@ public final class BzConfig {
 		return r == null ? TimeRange.WEEK : r;
 	}
 
-	public enum Markers { RELEVANT, ALL, OFF }
-
 	/** {@code rgb} with this config's background opacity (scaled by {@code factor}, e.g. 0.5 for half as opaque). */
 	public int background(int rgb, double factor) {
 		int pct = Math.max(0, Math.min(100, backgroundOpacity));
@@ -125,14 +116,6 @@ public final class BzConfig {
 	public TimeRange purseRange() {
 		TimeRange r = TimeRange.fromLabel(purseRange);
 		return r == null ? TimeRange.WEEK : r;
-	}
-
-	public Markers patchMarkers() {
-		try {
-			return Markers.valueOf(patchMarkers.trim().toUpperCase(java.util.Locale.ROOT));
-		} catch (RuntimeException e) {
-			return Markers.RELEVANT;
-		}
 	}
 
 	public void save() {

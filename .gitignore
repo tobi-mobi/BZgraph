@@ -27,11 +27,6 @@ bin/
 # VS Code
 .vscode/
 
-# Python (patch-index script)
-__pycache__/
-*.pyc
-.venv/
-
 # OS
 .DS_Store
 Thumbs.db

@@ -6,7 +6,6 @@ import dev.bzgraph.core.ApiClient;
 import dev.bzgraph.core.DiskCache;
 import dev.bzgraph.core.HistoryRepository;
 import dev.bzgraph.core.MayorRepository;
-import dev.bzgraph.core.PatchIndexRepository;
 import dev.bzgraph.core.RequestQueue;
 import dev.bzgraph.mc.BzConfig;
 import dev.bzgraph.mc.GraphScreen;
@@ -16,7 +15,6 @@ import dev.bzgraph.mc.FavoritesScreen;
 import dev.bzgraph.mc.BazaarMiniChart;
 import dev.bzgraph.mc.BzScreen;
 import dev.bzgraph.mc.GraphNav;
-import dev.bzgraph.mc.PatchListScreen;
 import dev.bzgraph.mc.PurseScreen;
 import dev.bzgraph.mc.PurseTracker;
 import dev.bzgraph.mc.ReiCompat;
@@ -49,9 +47,6 @@ import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.net.URI;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -75,9 +70,6 @@ public final class BzGraphClient implements ClientModInitializer {
 	private TradeTracker trades;
 	private PurseTracker purse;
 	private MayorRepository mayors;
-	private PatchIndexRepository patches;
-	private String defaultPatchIndexUrl = "";
-	private final AtomicBoolean patchesStarted = new AtomicBoolean();
 	private KeyMapping openKey;
 	private volatile Set<String> products;
 	private final AtomicBoolean productsLoading = new AtomicBoolean();
@@ -150,12 +142,6 @@ public final class BzGraphClient implements ClientModInitializer {
 			purse.stop();
 		});
 
-		defaultPatchIndexUrl = FabricLoader.getInstance().getModContainer(MOD_ID)
-				.map(c -> c.getMetadata().getCustomValue("bzgraph:patch_index_url"))
-				.map(v -> v.getAsString().trim()).orElse("");
-		patches = new PatchIndexRepository(api::getText, dir.resolve("cache").resolve("patch_index.json"),
-				BzGraphClient::readBundledPatchIndex, io, Instant::now, msg -> LOGGER.warn(msg));
-
 		openKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.bzgraph.open_graph",
 				InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_G,
 				KeyMapping.Category.register(Identifier.fromNamespaceAndPath(MOD_ID, "main"))));
@@ -186,15 +172,6 @@ public final class BzGraphClient implements ClientModInitializer {
 		ClientTickEvents.END_CLIENT_TICK.register(this::onTick);
 		ClientCommandRegistrationCallback.EVENT.register((dispatcher, ctx) -> dispatcher.register(
 				ClientCommands.literal("bzgraph")
-						.then(ClientCommands.literal("patches").executes(c -> {
-							if (!isActive()) {
-								c.getSource().sendError(Component.literal("BZgraph is only active on Hypixel."));
-								return 0;
-							}
-							ensurePatches();
-							pendingScreen = new PatchListScreen(null, new GraphNav(null), null, null, null, null);
-							return 1;
-						}))
 						.then(ClientCommands.literal("favorites").executes(c -> {
 							if (!isActive()) {
 								c.getSource().sendError(Component.literal("BZgraph is only active on Hypixel."));
@@ -310,37 +287,6 @@ public final class BzGraphClient implements ClientModInitializer {
 		return repository;
 	}
 
-	public PatchIndexRepository patches() {
-		return patches;
-	}
-
-	/** Configured override, else the URL baked in at build time (gradle.properties patch_index_url). */
-	public String patchIndexUrl() {
-		String u = config.patchIndexUrl == null ? "" : config.patchIndexUrl.trim();
-		return u.isEmpty() ? defaultPatchIndexUrl : u;
-	}
-
-	/** Loads the cached/bundled index and downloads a new one if stale; once per session. */
-	public void ensurePatches() {
-		if (patchesStarted.compareAndSet(false, true)) patches.init(patchIndexUrl());
-	}
-
-	public void refreshPatches(boolean force) {
-		if (!patchesStarted.get()) {
-			ensurePatches();
-			return;
-		}
-		if (force) patches.refresh(patchIndexUrl());
-	}
-
-	private static String readBundledPatchIndex() {
-		try (InputStream in = BzGraphClient.class.getResourceAsStream("/assets/bzgraph/patch_index.json")) {
-			return in == null ? null : new String(in.readAllBytes(), StandardCharsets.UTF_8);
-		} catch (IOException e) {
-			return null;
-		}
-	}
-
 	public KeyMapping openKey() {
 		return openKey;
 	}
@@ -362,7 +308,6 @@ public final class BzGraphClient implements ClientModInitializer {
 		if (mc.player == null) return;
 		if (isActive()) {
 			ensureProducts();
-			ensurePatches();
 		}
 		// Keybind with no screen open: item search.
 		while (openKey.consumeClick()) {

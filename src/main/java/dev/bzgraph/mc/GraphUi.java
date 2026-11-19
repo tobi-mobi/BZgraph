@@ -26,10 +26,6 @@ final class GraphUi {
 	static final int COLOR_DOWN = 0xFFFF5555;
 	/** Your trades: shape says buy (▲) or sell (▼); the colour stays neutral so a sell doesn't read as a loss. */
 	static final int COLOR_TRADE = 0xFFF0F0F0;
-	static final int COLOR_PATCH = 0xFFFF55FF;
-	static final int COLOR_PATCH_LINE = 0x90FF55FF;
-	static final int COLOR_PATCH_OTHER = 0x40FFFFFF;
-	static final int COLOR_PATCH_OTHER_FLAG = 0xFFAAAAAA;
 	private static final int COLOR_PANEL_BG = 0x101014;
 	private static final int COLOR_PANEL_BORDER = 0xFF3A3A44;
 
@@ -153,18 +149,6 @@ final class GraphUi {
 		}
 	}
 
-	/** Patch marker: a thin line through the plot with a small flag on top (two flags when several patches are merged). */
-	static void patchMarker(GuiGraphicsExtractor g, int x, int gy0, int gy1, boolean relevant, boolean several) {
-		g.verticalLine(x, gy0, gy1, relevant ? COLOR_PATCH_LINE : COLOR_PATCH_OTHER);
-		patchFlag(g, x, gy0, relevant ? COLOR_PATCH : COLOR_PATCH_OTHER_FLAG, several);
-	}
-
-	static void patchFlag(GuiGraphicsExtractor g, int x, int bottom, int color, boolean several) {
-		g.fill(x, bottom - 9, x + 1, bottom, color);
-		g.fill(x + 1, bottom - 9, x + 5, bottom - 6, color);
-		if (several) g.fill(x + 1, bottom - 5, x + 4, bottom - 3, color);
-	}
-
 	static void dot(GuiGraphicsExtractor g, int x, int y, int color) {
 		g.fill(x - 2, y - 2, x + 3, y + 3, 0xFF000000);
 		g.fill(x - 1, y - 1, x + 2, y + 2, color);
@@ -196,13 +180,11 @@ final class GraphUi {
 				{"band", "Band: lowest to highest price inside each point"},
 				{"buy", "You bought this item (insta-buy or a filled buy order)"},
 				{"sell", "You sold this item (insta-sell or a filled sell offer)"},
-				{"patch", "Patch note that mentions the item (hover, click to read)"},
 				{"mayor", "Mayor bar: who was mayor then (hover for perks)"},
-				{"keys", "1-5 range · S favourite · F search · C compare · P patches · M mayors · B band · R refresh"},
+				{"keys", "1-5 range · S favourite · F search · C compare · M mayors · B band · R refresh"},
 				{"head", "Data sources"},
 				{"link", "Prices and mayor history: SkyCofl, sky.coflnet.com (click)"},
 				{"src", "Bazaar item list: Hypixel API"},
-				{"src", "Patch notes: Hypixel forums, summarized in BZgraph's patch index"},
 				{"src", "Your trades: your chat and Minecraft log files"},
 		};
 		String title = purse ? "Reading the purse graph" : "Reading the graph";
@@ -228,7 +210,6 @@ final class GraphUi {
 				case "band" -> g.fill(ix - 4, iy - 3, ix + 5, iy + 4, 0x40FFFFFF);
 				case "buy" -> tradeMarker(g, ix, iy - 2, false, false);
 				case "sell" -> tradeMarker(g, ix, iy + 3, true, false);
-				case "patch" -> patchFlag(g, ix - 2, iy + 5, COLOR_PATCH, false);
 				case "mayor" -> g.fill(ix - 4, iy - 2, ix + 5, iy + 3, 0xFFC78B1E);
 				case "keys", "src" -> color = COLOR_DIM;
 				case "head" -> {
